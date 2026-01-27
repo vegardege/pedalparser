@@ -1,17 +1,13 @@
 [project]
 name = "pedalparser"
 version = "0.1.0"
-description = "Read and parse exported archives from your Body Bike"
+description = "Read and parse exported archives from your BodyBike"
 readme = "README.md"
 authors = [
     { name = "Vegard Egeland", email = "vegardegeland@gmail.com" }
 ]
-requires-python = ">=3.9"
+requires-python = ">=3.10"
 dependencies = []
-
-[build-system]
-requires = ["uv_build>=0.9.15,<0.10.0"]
-build-backend = "uv_build"
 
 [dependency-groups]
 dev = [
@@ -19,3 +15,7 @@ dev = [
     "ruff>=0.14.14",
     "ty>=0.0.14",
 ]
+
+[build-system]
+requires = ["uv_build>=0.9.15,<0.10.0"]
+build-backend = "uv_build"
