@@ -1,5 +1,5 @@
 import json
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from io import BytesIO
 from pathlib import Path
 from zipfile import BadZipfile, ZipFile
@@ -208,6 +208,12 @@ def test_workout_timing(data: BodyBikeExport):
     assert first.end_time == 3601001
 
 
+def test_workout_duration(data: BodyBikeExport):
+    first = data.workouts[0]
+    assert first.duration == timedelta(milliseconds=3601001)
+    assert first.duration > timedelta(hours=1)
+
+
 def test_workout_time_ms_array(data: BodyBikeExport):
     first = data.workouts[0]
     assert isinstance(first.time_ms, np.ndarray)
@@ -249,9 +255,6 @@ def test_all_metrics_present(data: BodyBikeExport):
         assert isinstance(metric, Metric)
         assert isinstance(metric.ts, np.ndarray)
         assert len(metric.ts) == len(first.time_ms)
-
-
-# MetricAccessor tests
 
 
 def test_metric_accessor_returns_accessor(data: BodyBikeExport):
@@ -313,3 +316,117 @@ def test_start_dates_property(data: BodyBikeExport):
     assert len(dates) == len(data.workouts)
     # Should be sorted (oldest first)
     assert np.all(dates[:-1] <= dates[1:])
+
+
+def test_where_returns_workout_collection(data: BodyBikeExport):
+    filtered = data.workouts.where(lambda w: True)
+    assert isinstance(filtered, WorkoutCollection)
+
+
+def test_where_filters_by_predicate(data: BodyBikeExport):
+    # Filter to workouts with mean power > 250
+    high_power = data.workouts.where(lambda w: w.power.mean > 250)
+    assert len(high_power) > 0
+    assert len(high_power) < len(data.workouts)
+    assert all(w.power.mean > 250 for w in high_power)
+
+
+def test_where_preserves_order(data: BodyBikeExport):
+    filtered = data.workouts.where(lambda w: True)
+    for orig, filt in zip(data.workouts, filtered):
+        assert orig is filt
+
+
+def test_where_empty_result(data: BodyBikeExport):
+    # No workout has negative power
+    empty = data.workouts.where(lambda w: w.power.mean < 0)
+    assert isinstance(empty, WorkoutCollection)
+    assert len(empty) == 0
+
+
+def test_where_all_match(data: BodyBikeExport):
+    # All workouts have positive duration
+    all_workouts = data.workouts.where(lambda w: w.duration > timedelta(0))
+    assert len(all_workouts) == len(data.workouts)
+
+
+def test_where_has_metric_accessors(data: BodyBikeExport):
+    filtered = data.workouts.where(lambda w: w.power.mean > 250)
+    assert isinstance(filtered.power, MetricAccessor)
+    assert len(filtered.power.mean) == len(filtered)
+
+
+def test_where_chained(data: BodyBikeExport):
+    # Chain multiple where calls
+    result = data.workouts.where(lambda w: w.power.mean > 150).where(
+        lambda w: w.heartrate.mean > 100
+    )
+    assert isinstance(result, WorkoutCollection)
+    assert all(w.power.mean > 150 and w.heartrate.mean > 100 for w in result)
+
+
+def test_closest_to_exact_match(data: BodyBikeExport):
+    # Search for exact timestamp of first workout
+    first = data.workouts[0]
+    found = data.workouts.closest_to(first.start_date)
+    assert found is first
+
+
+def test_closest_to_string_timestamp(data: BodyBikeExport):
+    first = data.workouts[0]
+    found = data.workouts.closest_to(first.start_date.isoformat())
+    assert found is first
+
+
+def test_closest_to_between_workouts(data: BodyBikeExport):
+    # Search for time between first and second workout
+    first = data.workouts[0]
+    second = data.workouts[1]
+    midpoint = first.start_date + (second.start_date - first.start_date) / 2
+
+    # Should return whichever is closer
+    found = data.workouts.closest_to(midpoint)
+    assert found in (first, second)
+
+
+def test_closest_to_before_all(data: BodyBikeExport):
+    # Search for time before all workouts
+    first = data.workouts[0]
+    before = first.start_date - timedelta(days=365)
+    found = data.workouts.closest_to(before)
+    assert found is first
+
+
+def test_closest_to_after_all(data: BodyBikeExport):
+    # Search for time after all workouts
+    last = data.workouts[-1]
+    after = last.start_date + timedelta(days=365)
+    found = data.workouts.closest_to(after)
+    assert found is last
+
+
+def test_closest_to_empty_collection(data: BodyBikeExport):
+    empty = data.workouts.where(lambda w: False)
+    assert empty.closest_to(datetime.now(timezone.utc)) is None
+
+
+def test_closest_to_max_distance_within(data: BodyBikeExport):
+    first = data.workouts[0]
+    near = first.start_date + timedelta(hours=1)
+    found = data.workouts.closest_to(near, max_distance=timedelta(hours=2))
+    assert found is first
+
+
+def test_closest_to_max_distance_exceeded(data: BodyBikeExport):
+    first = data.workouts[0]
+    far = first.start_date - timedelta(days=365)
+    found = data.workouts.closest_to(far, max_distance=timedelta(days=1))
+    assert found is None
+
+
+def test_closest_to_naive_datetime(data: BodyBikeExport):
+    # Naive datetime should be treated as UTC
+    first = data.workouts[0]
+    naive = first.start_date.replace(tzinfo=None)
+    found = data.workouts.closest_to(naive)
+    assert found is first

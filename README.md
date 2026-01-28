@@ -4,12 +4,6 @@ An open source Python library to read and parse exported data files from station
 
 Currently supports [Body Bike v2.3.4](https://body-bike.com/) which is the brand I use, but feel free to contribute parsers to other versions or bikes.
 
-## Installation
-
-```bash
-pip install pedalparser
-```
-
 ## Usage
 
 ### Loading an export
@@ -62,6 +56,41 @@ Slicing returns a new `WorkoutCollection`, so you can chain operations:
 ```python
 recent = export.workouts[-10:]  # Last 10 workouts
 print(recent.power.mean)        # array of 10 values
+```
+
+### Filtering
+
+Use `where()` to filter workouts by any predicate:
+
+```python
+from datetime import datetime, timedelta, timezone
+
+# Filter by metric thresholds
+high_power = export.workouts.where(lambda w: w.power.mean > 180)
+long_rides = export.workouts.where(lambda w: w.duration > timedelta(minutes=60))
+
+# Filter by date
+cutoff = datetime(2026, 1, 1, tzinfo=timezone.utc)
+recent = export.workouts.where(lambda w: w.start_date >= cutoff)
+
+# Chain filters
+intense = (
+    export.workouts
+    .where(lambda w: w.power.mean > 150)
+    .where(lambda w: w.heartrate.mean > 140)
+)
+```
+
+### Finding a specific workout
+
+Use `closest_to()` to find the workout nearest to a given timestamp:
+
+```python
+# Find workout closest to a date
+w = export.workouts.closest_to("2026-01-15T10:00:00")
+
+# With a maximum search distance (returns None if nothing within range)
+w = export.workouts.closest_to("2026-01-15", max_distance=timedelta(hours=24))
 ```
 
 ### Plotting

@@ -1,8 +1,9 @@
+import bisect
 import json
 import os
-from collections.abc import Sequence
+from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from enum import IntEnum, StrEnum
 from os import PathLike
 from typing import IO, Any, Callable, TypeVar, overload
@@ -213,6 +214,11 @@ class Workout:
     start_time: int
     end_time: int
 
+    @property
+    def duration(self) -> timedelta:
+        """Workout duration."""
+        return timedelta(milliseconds=self.end_time - self.start_time)
+
     # Shared time axis for all metrics
     time_ms: np.ndarray
 
@@ -237,7 +243,7 @@ class WorkoutCollection(Sequence[Workout]):
 
     __slots__ = ("_workouts",)
 
-    def __init__(self, workouts: Sequence[Workout]):
+    def __init__(self, workouts: Iterable[Workout]):
         self._workouts: tuple[Workout, ...] = tuple(workouts)
 
     @overload
@@ -279,6 +285,55 @@ class WorkoutCollection(Sequence[Workout]):
         """Start dates as numpy datetime64[ms] array (UTC)."""
         timestamps_ms = [int(w.start_date.timestamp() * 1000) for w in self]
         return np.array(timestamps_ms, dtype="datetime64[ms]")
+
+    def where(self, predicate: Callable[[Workout], bool]) -> "WorkoutCollection":
+        """Filter workouts by predicate. Returns a new collection."""
+        return WorkoutCollection(w for w in self if predicate(w))
+
+    def closest_to(
+        self,
+        timestamp: datetime | str,
+        max_distance: timedelta | None = None,
+    ) -> Workout | None:
+        """Find the workout closest to the given timestamp.
+
+        Args:
+            timestamp: Target time as datetime or ISO format string.
+            max_distance: Maximum allowed distance from target. If the closest
+                workout is further away, returns None.
+
+        Returns:
+            The workout with start_date closest to timestamp, or None if the
+            collection is empty or no workout is within max_distance.
+        """
+        if not self._workouts:
+            return None
+
+        if isinstance(timestamp, str):
+            timestamp = datetime.fromisoformat(timestamp)
+
+        # Ensure timestamp is timezone-aware (assume UTC if naive)
+        if timestamp.tzinfo is None:
+            timestamp = timestamp.replace(tzinfo=timezone.utc)
+
+        # Binary search for insertion point
+        timestamps = [w.start_date for w in self._workouts]
+        idx = bisect.bisect_left(timestamps, timestamp)
+
+        # Check neighbors to find closest
+        candidates = []
+        if idx > 0:
+            candidates.append(self._workouts[idx - 1])
+        if idx < len(self._workouts):
+            candidates.append(self._workouts[idx])
+
+        closest = min(candidates, key=lambda w: abs(w.start_date - timestamp))
+
+        if max_distance is not None:
+            if abs(closest.start_date - timestamp) > max_distance:
+                return None
+
+        return closest
 
 
 @dataclass(frozen=True, slots=True)
