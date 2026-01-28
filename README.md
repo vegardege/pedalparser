@@ -1,8 +1,22 @@
 # Pedal Parser
 
-An open source Python library to read and parse exported data files from stationary bikes.
+A Python library for analyzing workout data exported from stationary bikes.
 
-Currently supports [Body Bike v2.3.4](https://body-bike.com/) which is the brand I use, but feel free to contribute parsers to other versions or bikes.
+- Load exported archives and access workout metrics (power, heartrate, cadence, distance, calories)
+- Per-second time series data as numpy arrays
+- Aggregate statistics across workout collections
+- Filter, slice, and search workouts
+- Export to pandas or polars DataFrames
+
+Currently supports [Body Bike v2.3.4](https://body-bike.com/). Contributions for other bikes welcome.
+
+## Installation
+
+```bash
+pip install pedalparser              # Core library
+pip install pedalparser[pandas]      # With pandas support
+pip install pedalparser[polars]      # With polars support
+```
 
 ## Usage
 
@@ -91,6 +105,32 @@ w = export.workouts.closest_to("2026-01-15T10:00:00")
 
 # With a maximum search distance (returns None if nothing within range)
 w = export.workouts.closest_to("2026-01-15", max_distance=timedelta(hours=24))
+```
+
+### Exporting to pandas or polars
+
+Convert workout data to DataFrames for further analysis. Both pandas and polars are optional dependencies:
+
+```bash
+pip install pedalparser[pandas]   # or [polars] or [all]
+```
+
+**Collection to DataFrame** (one row per workout, aggregate metrics):
+
+```python
+df = export.workouts.to_pandas()  # or .to_polars()
+
+# Columns: start_date, duration, power_mean, power_max, heartrate_mean, ...
+df.plot(x="start_date", y="power_mean")
+```
+
+**Single workout to DataFrame** (time series data):
+
+```python
+df = export.workouts[-1].to_pandas()  # or .to_polars()
+
+# Columns: time_ms, power, heartrate, cadence, distance, calories
+df.plot(x="time_ms", y="power")
 ```
 
 ### Plotting

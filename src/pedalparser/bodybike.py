@@ -6,10 +6,15 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from enum import IntEnum, StrEnum
 from os import PathLike
-from typing import IO, Any, Callable, TypeVar, overload
+from typing import IO, TYPE_CHECKING, Any, Callable, TypeVar, overload
 from zipfile import ZipFile
 
 import numpy as np
+
+if TYPE_CHECKING:
+    import pandas as pd  # type: ignore[import-not-found]
+    import polars as pl  # type: ignore[import-not-found]
+
 
 T = TypeVar("T")
 
@@ -237,6 +242,58 @@ class Workout:
     power_zones_count: int
     total: int
 
+    def to_pandas(self) -> "pd.DataFrame":
+        """Convert time series to a pandas DataFrame.
+
+        Returns:
+            DataFrame with columns: time_ms, power, heartrate, cadence,
+            distance, calories.
+
+        Raises:
+            ImportError: If pandas is not installed.
+        """
+        try:
+            import pandas as pd  # type: ignore[import-not-found]
+        except ImportError:
+            raise ImportError("pandas must be installed to run to_pandas().") from None
+
+        return pd.DataFrame(
+            {
+                "time_ms": self.time_ms,
+                "power": self.power.ts,
+                "heartrate": self.heartrate.ts,
+                "cadence": self.cadence.ts,
+                "distance": self.distance.ts,
+                "calories": self.calories.ts,
+            }
+        )
+
+    def to_polars(self) -> "pl.DataFrame":
+        """Convert time series to a polars DataFrame.
+
+        Returns:
+            DataFrame with columns: time_ms, power, heartrate, cadence,
+            distance, calories.
+
+        Raises:
+            ImportError: If polars is not installed.
+        """
+        try:
+            import polars as pl  # type: ignore[import-not-found]
+        except ImportError:
+            raise ImportError("polars must be installed to run to_polars().") from None
+
+        return pl.DataFrame(
+            {
+                "time_ms": self.time_ms,
+                "power": self.power.ts,
+                "heartrate": self.heartrate.ts,
+                "cadence": self.cadence.ts,
+                "distance": self.distance.ts,
+                "calories": self.calories.ts,
+            }
+        )
+
 
 class WorkoutCollection(Sequence[Workout]):
     """Immutable, indexable collection of workouts sorted by start_date."""
@@ -286,6 +343,12 @@ class WorkoutCollection(Sequence[Workout]):
         timestamps_ms = [int(w.start_date.timestamp() * 1000) for w in self]
         return np.array(timestamps_ms, dtype="datetime64[ms]")
 
+    @property
+    def durations(self) -> np.ndarray:
+        """Workout durations as numpy timedelta64[ms] array."""
+        ms = [w.end_time - w.start_time for w in self]
+        return np.array(ms, dtype="timedelta64[ms]")
+
     def where(self, predicate: Callable[[Workout], bool]) -> "WorkoutCollection":
         """Filter workouts by predicate. Returns a new collection."""
         return WorkoutCollection(w for w in self if predicate(w))
@@ -334,6 +397,59 @@ class WorkoutCollection(Sequence[Workout]):
                 return None
 
         return closest
+
+    def to_pandas(self) -> "pd.DataFrame":
+        """Convert collection to a pandas DataFrame with aggregate metrics.
+
+        Returns:
+            DataFrame with one row per workout. Columns include start_date,
+            duration, and mean/max/min/sum for each metric.
+
+        Raises:
+            ImportError: If pandas is not installed.
+        """
+        try:
+            import pandas as pd  # type: ignore[import-not-found]
+        except ImportError:
+            raise ImportError("pandas must be installed to run to_pandas().") from None
+
+        return pd.DataFrame(self.to_dict())
+
+    def to_polars(self) -> "pl.DataFrame":
+        """Convert collection to a polars DataFrame with aggregate metrics.
+
+        Returns:
+            DataFrame with one row per workout. Columns include start_date,
+            duration, and mean/max/min/sum for each metric.
+
+        Raises:
+            ImportError: If polars is not installed.
+        """
+        try:
+            import polars as pl  # type: ignore[import-not-found]
+        except ImportError:
+            raise ImportError("polars must be installed to run to_polars().") from None
+
+        return pl.DataFrame(self.to_dict())
+
+    def to_dict(self) -> dict[str, Any]:
+        """Build dict representation for DataFrame export."""
+        data: dict[str, Any] = {
+            "start_date": self.start_dates,
+            "duration": self.durations,
+        }
+
+        for name in ("power", "heartrate", "cadence", "distance", "calories"):
+            accessor = getattr(self, name)
+            data[f"{name}_max"] = accessor.max
+            data[f"{name}_min"] = accessor.min
+            data[f"{name}_mean"] = accessor.mean
+            data[f"{name}_sum"] = accessor.sum
+
+        for i in range(5):
+            data[f"zone_{i + 1}"] = [float(w.power_zones[i]) for w in self]
+
+        return data
 
 
 @dataclass(frozen=True, slots=True)
