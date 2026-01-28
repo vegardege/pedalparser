@@ -152,6 +152,60 @@ class Metric:
     ts: np.ndarray
 
 
+class MetricAccessor:
+    """Proxy for accessing a metric across all workouts in a collection.
+
+    Provides the same attribute interface as Metric, but returns numpy arrays
+    containing values from all workouts in the collection.
+
+    Example:
+        >>> collection.power.mean      # np.ndarray of mean power per workout
+        >>> collection.power.max       # np.ndarray of max power per workout
+        >>> workout.power.mean         # float for single workout
+    """
+
+    __slots__ = ("_collection", "_metric")
+
+    def __init__(self, collection: "WorkoutCollection", metric: str):
+        self._collection = collection
+        self._metric = metric
+
+    @property
+    def value(self) -> np.ndarray:
+        return np.array(
+            [getattr(w, self._metric).value for w in self._collection],
+            dtype=np.float64,
+        )
+
+    @property
+    def max(self) -> np.ndarray:
+        return np.array(
+            [getattr(w, self._metric).max for w in self._collection],
+            dtype=np.float64,
+        )
+
+    @property
+    def min(self) -> np.ndarray:
+        return np.array(
+            [getattr(w, self._metric).min for w in self._collection],
+            dtype=np.float64,
+        )
+
+    @property
+    def mean(self) -> np.ndarray:
+        return np.array(
+            [getattr(w, self._metric).mean for w in self._collection],
+            dtype=np.float64,
+        )
+
+    @property
+    def sum(self) -> np.ndarray:
+        return np.array(
+            [getattr(w, self._metric).sum for w in self._collection],
+            dtype=np.float64,
+        )
+
+
 @dataclass(frozen=True, slots=True)
 class Workout:
     # Exact time the workout was started, plus start and end offsets in ms
@@ -179,20 +233,52 @@ class Workout:
 
 
 class WorkoutCollection(Sequence[Workout]):
-    def __init__(self, workouts: list[Workout]):
-        self._workouts = workouts
+    """Immutable, indexable collection of workouts sorted by start_date."""
+
+    __slots__ = ("_workouts",)
+
+    def __init__(self, workouts: Sequence[Workout]):
+        self._workouts: tuple[Workout, ...] = tuple(workouts)
 
     @overload
     def __getitem__(self, index: int) -> Workout: ...
 
     @overload
-    def __getitem__(self, index: slice) -> list[Workout]: ...
+    def __getitem__(self, index: slice) -> "WorkoutCollection": ...
 
-    def __getitem__(self, index: int | slice) -> Workout | list[Workout]:
+    def __getitem__(self, index: int | slice) -> "Workout | WorkoutCollection":
+        if isinstance(index, slice):
+            return WorkoutCollection(self._workouts[index])
         return self._workouts[index]
 
     def __len__(self) -> int:
         return len(self._workouts)
+
+    @property
+    def power(self) -> MetricAccessor:
+        return MetricAccessor(self, "power")
+
+    @property
+    def heartrate(self) -> MetricAccessor:
+        return MetricAccessor(self, "heartrate")
+
+    @property
+    def cadence(self) -> MetricAccessor:
+        return MetricAccessor(self, "cadence")
+
+    @property
+    def distance(self) -> MetricAccessor:
+        return MetricAccessor(self, "distance")
+
+    @property
+    def calories(self) -> MetricAccessor:
+        return MetricAccessor(self, "calories")
+
+    @property
+    def start_dates(self) -> np.ndarray:
+        """Start dates as numpy datetime64[ms] array (UTC)."""
+        timestamps_ms = [int(w.start_date.timestamp() * 1000) for w in self]
+        return np.array(timestamps_ms, dtype="datetime64[ms]")
 
 
 @dataclass(frozen=True, slots=True)

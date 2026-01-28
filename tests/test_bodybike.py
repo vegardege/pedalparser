@@ -13,8 +13,10 @@ from pedalparser.bodybike import (
     InvalidBodyBikeExport,
     MedalLevel,
     Metric,
+    MetricAccessor,
     Unit,
     Workout,
+    WorkoutCollection,
     load,
 )
 
@@ -184,7 +186,7 @@ def test_workout_collection_contains(data: BodyBikeExport):
 
 def test_workout_collection_slicing(data: BodyBikeExport):
     first_three = data.workouts[:3]
-    assert isinstance(first_three, list)
+    assert isinstance(first_three, WorkoutCollection)
     assert len(first_three) == 3
     assert first_three[0] is data.workouts[0]
 
@@ -247,3 +249,67 @@ def test_all_metrics_present(data: BodyBikeExport):
         assert isinstance(metric, Metric)
         assert isinstance(metric.ts, np.ndarray)
         assert len(metric.ts) == len(first.time_ms)
+
+
+# MetricAccessor tests
+
+
+def test_metric_accessor_returns_accessor(data: BodyBikeExport):
+    assert isinstance(data.workouts.power, MetricAccessor)
+    assert isinstance(data.workouts.heartrate, MetricAccessor)
+    assert isinstance(data.workouts.cadence, MetricAccessor)
+    assert isinstance(data.workouts.distance, MetricAccessor)
+    assert isinstance(data.workouts.calories, MetricAccessor)
+
+
+def test_metric_accessor_mean_returns_array(data: BodyBikeExport):
+    means = data.workouts.power.mean
+    assert isinstance(means, np.ndarray)
+    assert means.dtype == np.float64
+    assert len(means) == len(data.workouts)
+
+
+def test_metric_accessor_values_match_individual_workouts(data: BodyBikeExport):
+    # Collection-level access should match iterating over individual workouts
+    expected_means = np.array([w.power.mean for w in data.workouts])
+    expected_maxes = np.array([w.power.max for w in data.workouts])
+    expected_mins = np.array([w.power.min for w in data.workouts])
+    expected_sums = np.array([w.power.sum for w in data.workouts])
+
+    np.testing.assert_array_equal(data.workouts.power.mean, expected_means)
+    np.testing.assert_array_equal(data.workouts.power.max, expected_maxes)
+    np.testing.assert_array_equal(data.workouts.power.min, expected_mins)
+    np.testing.assert_array_equal(data.workouts.power.sum, expected_sums)
+
+
+def test_metric_accessor_all_metrics(data: BodyBikeExport):
+    # Verify all metric accessors work
+    for accessor in [
+        data.workouts.power,
+        data.workouts.heartrate,
+        data.workouts.cadence,
+        data.workouts.distance,
+        data.workouts.calories,
+    ]:
+        assert len(accessor.mean) == len(data.workouts)
+        assert len(accessor.max) == len(data.workouts)
+        assert len(accessor.min) == len(data.workouts)
+        assert len(accessor.sum) == len(data.workouts)
+
+
+def test_sliced_collection_has_metric_accessors(data: BodyBikeExport):
+    sliced = data.workouts[:5]
+    assert len(sliced.power.mean) == 5
+    np.testing.assert_array_equal(
+        sliced.power.mean,
+        data.workouts.power.mean[:5],
+    )
+
+
+def test_start_dates_property(data: BodyBikeExport):
+    dates = data.workouts.start_dates
+    assert isinstance(dates, np.ndarray)
+    assert dates.dtype == np.dtype("datetime64[ms]")
+    assert len(dates) == len(data.workouts)
+    # Should be sorted (oldest first)
+    assert np.all(dates[:-1] <= dates[1:])
