@@ -6,9 +6,13 @@ A Python library for analyzing workout data exported from stationary bikes.
 - Per-second time series data as numpy arrays
 - Aggregate statistics across workout collections
 - Filter, slice, and search workouts
-- Export to pandas or polars DataFrames
+- Export to `pandas` or `polars` DataFrames
 
-Currently supports [Body Bike v2.3.4](https://body-bike.com/). Contributions for other bikes welcome.
+## Bike Support
+
+* [Body Bike v2.3.4](https://body-bike.com/).
+
+Contributions for other bikes welcome.
 
 ## Installation
 
@@ -25,29 +29,11 @@ pip install pedalparser[polars]      # With polars support
 ```python
 from pedalparser import bodybike
 
-export = bodybike.load("bodybike-export.zip")
+export = bodybike.load("20260128T120516994Z_backup.zip")
 
 print(len(export.workouts))  # 73
 print(export.user_settings.weight)  # 80
 print(export.app_info.version)  # "2.3.4"
-```
-
-### Single workout analysis
-
-```python
-w = export.workouts[-1]  # Most recent workout
-
-# Summary statistics
-print(w.power.mean)       # 185.5
-print(w.power.max)        # 342
-print(w.heartrate.mean)   # 145.2
-
-# Time series data (numpy arrays)
-print(w.power.ts)         # array([142, 145, 148, ...])
-print(w.power.ts.std())   # numpy operations work
-
-# Power zone distribution
-print(w.power_zones)      # (0.05, 0.45, 0.30, 0.15, 0.05)
 ```
 
 ### Collection-level analysis
@@ -62,8 +48,6 @@ print(ws.power.mean)      # array([185.5, 190.2, 178.3, ...])
 print(ws.power.max)       # array([342, 356, 298, ...])
 print(ws.heartrate.mean)  # array([145.2, 148.1, 142.5, ...])
 ```
-
-### Slicing
 
 Slicing returns a new `WorkoutCollection`, so you can chain operations:
 
@@ -85,7 +69,7 @@ long_rides = export.workouts.where(lambda w: w.duration > timedelta(minutes=60))
 
 # Filter by date
 cutoff = datetime(2026, 1, 1, tzinfo=timezone.utc)
-recent = export.workouts.where(lambda w: w.start_date >= cutoff)
+recent = export.workouts.where(lambda w: w.start_time >= cutoff)
 
 # Chain filters
 intense = (
@@ -107,12 +91,30 @@ w = export.workouts.closest_to("2026-01-15T10:00:00")
 w = export.workouts.closest_to("2026-01-15", max_distance=timedelta(hours=24))
 ```
 
+### Single workout analysis
+
+```python
+w = export.workouts[-1]  # Most recent workout
+
+# Summary statistics
+print(w.power.mean)       # 185.5
+print(w.power.max)        # 342
+print(w.heartrate.mean)   # 145.2
+
+# Time series data (numpy arrays)
+print(w.power.ts)         # array([142, 145, 148, ...])
+print(w.power.ts.std())   # numpy operations work
+
+# Power zone distribution
+print(w.power_zones)      # (0.05, 0.45, 0.30, 0.15, 0.05)
+```
+
 ### Exporting to pandas or polars
 
 Convert workout data to DataFrames for further analysis. Both pandas and polars are optional dependencies:
 
 ```bash
-pip install pedalparser[pandas]   # or [polars] or [all]
+pip install pedalparser[pandas]   # or [polars]
 ```
 
 **Collection to DataFrame** (one row per workout, aggregate metrics):
@@ -120,8 +122,8 @@ pip install pedalparser[pandas]   # or [polars] or [all]
 ```python
 df = export.workouts.to_pandas()  # or .to_polars()
 
-# Columns: start_date, duration, power_mean, power_max, heartrate_mean, ...
-df.plot(x="start_date", y="power_mean")
+# Columns: start_time, duration, power_mean, power_max, heartrate_mean, ...
+df.plot(x="start_time", y="power_mean")
 ```
 
 **Single workout to DataFrame** (time series data):
@@ -147,7 +149,7 @@ plt.show()
 
 # Plot average power trend across all workouts
 ws = export.workouts
-plt.plot(ws.start_dates, ws.power.mean)
+plt.plot(ws.start_times, ws.power.mean)
 plt.xlabel("Date")
 plt.ylabel("Avg Power (W)")
 plt.show()

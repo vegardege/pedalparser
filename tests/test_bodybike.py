@@ -170,7 +170,7 @@ def test_workout_collection_indexing(data: BodyBikeExport):
     last = data.workouts[-1]
     assert isinstance(first, Workout)
     assert isinstance(last, Workout)
-    assert first.start_date < last.start_date
+    assert first.start_time < last.start_time
 
 
 def test_workout_collection_iteration(data: BodyBikeExport):
@@ -192,20 +192,14 @@ def test_workout_collection_slicing(data: BodyBikeExport):
 
 
 def test_workouts_sorted_by_date(data: BodyBikeExport):
-    dates = [w.start_date for w in data.workouts]
+    dates = [w.start_time for w in data.workouts]
     assert dates == sorted(dates)
 
 
-def test_workout_start_date(data: BodyBikeExport):
+def test_workout_start_time(data: BodyBikeExport):
     first = data.workouts[0]
     expected = datetime.fromtimestamp(1767608564932 / 1000, tz=timezone.utc)
-    assert first.start_date == expected
-
-
-def test_workout_timing(data: BodyBikeExport):
-    first = data.workouts[0]
-    assert first.start_time == 0
-    assert first.end_time == 3601001
+    assert first.start_time == expected
 
 
 def test_workout_duration(data: BodyBikeExport):
@@ -309,8 +303,8 @@ def test_sliced_collection_has_metric_accessors(data: BodyBikeExport):
     )
 
 
-def test_start_dates_property(data: BodyBikeExport):
-    dates = data.workouts.start_dates
+def test_start_times_property(data: BodyBikeExport):
+    dates = data.workouts.start_times
     assert isinstance(dates, np.ndarray)
     assert dates.dtype == np.dtype("datetime64[ms]")
     assert len(dates) == len(data.workouts)
@@ -368,13 +362,13 @@ def test_where_chained(data: BodyBikeExport):
 def test_closest_to_exact_match(data: BodyBikeExport):
     # Search for exact timestamp of first workout
     first = data.workouts[0]
-    found = data.workouts.closest_to(first.start_date)
+    found = data.workouts.closest_to(first.start_time)
     assert found is first
 
 
 def test_closest_to_string_timestamp(data: BodyBikeExport):
     first = data.workouts[0]
-    found = data.workouts.closest_to(first.start_date.isoformat())
+    found = data.workouts.closest_to(first.start_time.isoformat())
     assert found is first
 
 
@@ -382,7 +376,7 @@ def test_closest_to_between_workouts(data: BodyBikeExport):
     # Search for time between first and second workout
     first = data.workouts[0]
     second = data.workouts[1]
-    midpoint = first.start_date + (second.start_date - first.start_date) / 2
+    midpoint = first.start_time + (second.start_time - first.start_time) / 2
 
     # Should return whichever is closer
     found = data.workouts.closest_to(midpoint)
@@ -392,7 +386,7 @@ def test_closest_to_between_workouts(data: BodyBikeExport):
 def test_closest_to_before_all(data: BodyBikeExport):
     # Search for time before all workouts
     first = data.workouts[0]
-    before = first.start_date - timedelta(days=365)
+    before = first.start_time - timedelta(days=365)
     found = data.workouts.closest_to(before)
     assert found is first
 
@@ -400,7 +394,7 @@ def test_closest_to_before_all(data: BodyBikeExport):
 def test_closest_to_after_all(data: BodyBikeExport):
     # Search for time after all workouts
     last = data.workouts[-1]
-    after = last.start_date + timedelta(days=365)
+    after = last.start_time + timedelta(days=365)
     found = data.workouts.closest_to(after)
     assert found is last
 
@@ -412,14 +406,14 @@ def test_closest_to_empty_collection(data: BodyBikeExport):
 
 def test_closest_to_max_distance_within(data: BodyBikeExport):
     first = data.workouts[0]
-    near = first.start_date + timedelta(hours=1)
+    near = first.start_time + timedelta(hours=1)
     found = data.workouts.closest_to(near, max_distance=timedelta(hours=2))
     assert found is first
 
 
 def test_closest_to_max_distance_exceeded(data: BodyBikeExport):
     first = data.workouts[0]
-    far = first.start_date - timedelta(days=365)
+    far = first.start_time - timedelta(days=365)
     found = data.workouts.closest_to(far, max_distance=timedelta(days=1))
     assert found is None
 
@@ -427,6 +421,6 @@ def test_closest_to_max_distance_exceeded(data: BodyBikeExport):
 def test_closest_to_naive_datetime(data: BodyBikeExport):
     # Naive datetime should be treated as UTC
     first = data.workouts[0]
-    naive = first.start_date.replace(tzinfo=None)
+    naive = first.start_time.replace(tzinfo=None)
     found = data.workouts.closest_to(naive)
     assert found is first

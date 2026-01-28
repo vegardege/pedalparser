@@ -145,16 +145,26 @@ class UserSettings:
 
 @dataclass(frozen=True, slots=True)
 class Metric:
-    # Aggregated values from the workout, as calculated by the app. Note that
-    # these are not identical to metrics derived from the time series (e.g.
-    # `ts.mean()`). I'm not sure why, but assume these are the most accurate.
+    """Summary statistics and time series for a single workout metric.
+
+    Each workout has five metrics: power, heartrate, cadence, distance, calories.
+    Access them via workout.power, workout.heartrate, etc.
+
+    Attributes:
+        value: Final value at end of workout.
+        max: Maximum value during workout.
+        min: Minimum value during workout.
+        mean: Average value during workout.
+        sum: Sum of all values during workout.
+        ts: Per-second time series as numpy array. Use workout.time_ms for
+            the corresponding time axis.
+    """
+
     value: float
     max: float
     min: float
     mean: float
     sum: float
-
-    # Per second data. Time axis is given as `time_ms` on the parent object.
     ts: np.ndarray
 
 
@@ -214,15 +224,19 @@ class MetricAccessor:
 
 @dataclass(frozen=True, slots=True)
 class Workout:
-    # Exact time the workout was started, plus start and end offsets in ms
-    start_date: datetime
-    start_time: int
-    end_time: int
+    """A single workout session with metrics and time series data.
 
-    @property
-    def duration(self) -> timedelta:
-        """Workout duration."""
-        return timedelta(milliseconds=self.end_time - self.start_time)
+    Attributes:
+        start_time: When the workout started (UTC).
+        duration: Workout length.
+        power, heartrate, cadence, distance, calories: Metric objects with
+            summary stats (.mean, .max, etc.) and time series (.ts).
+        time_ms: Shared time axis for all metric time series (milliseconds).
+        power_zones: Fraction of time spent in each power zone (5 zones).
+    """
+
+    start_time: datetime
+    duration: timedelta
 
     # Shared time axis for all metrics
     time_ms: np.ndarray
@@ -296,7 +310,7 @@ class Workout:
 
 
 class WorkoutCollection(Sequence[Workout]):
-    """Immutable, indexable collection of workouts sorted by start_date."""
+    """Immutable, indexable collection of workouts sorted by start_time."""
 
     __slots__ = ("_workouts",)
 
@@ -338,15 +352,15 @@ class WorkoutCollection(Sequence[Workout]):
         return MetricAccessor(self, "calories")
 
     @property
-    def start_dates(self) -> np.ndarray:
-        """Start dates as numpy datetime64[ms] array (UTC)."""
-        timestamps_ms = [int(w.start_date.timestamp() * 1000) for w in self]
+    def start_times(self) -> np.ndarray:
+        """Start times as numpy datetime64[ms] array (UTC)."""
+        timestamps_ms = [int(w.start_time.timestamp() * 1000) for w in self]
         return np.array(timestamps_ms, dtype="datetime64[ms]")
 
     @property
     def durations(self) -> np.ndarray:
         """Workout durations as numpy timedelta64[ms] array."""
-        ms = [w.end_time - w.start_time for w in self]
+        ms = [int(w.duration.total_seconds() * 1000) for w in self]
         return np.array(ms, dtype="timedelta64[ms]")
 
     def where(self, predicate: Callable[[Workout], bool]) -> "WorkoutCollection":
@@ -366,7 +380,7 @@ class WorkoutCollection(Sequence[Workout]):
                 workout is further away, returns None.
 
         Returns:
-            The workout with start_date closest to timestamp, or None if the
+            The workout with start_time closest to timestamp, or None if the
             collection is empty or no workout is within max_distance.
         """
         if not self._workouts:
@@ -380,7 +394,7 @@ class WorkoutCollection(Sequence[Workout]):
             timestamp = timestamp.replace(tzinfo=timezone.utc)
 
         # Binary search for insertion point
-        timestamps = [w.start_date for w in self._workouts]
+        timestamps = [w.start_time for w in self._workouts]
         idx = bisect.bisect_left(timestamps, timestamp)
 
         # Check neighbors to find closest
@@ -390,10 +404,10 @@ class WorkoutCollection(Sequence[Workout]):
         if idx < len(self._workouts):
             candidates.append(self._workouts[idx])
 
-        closest = min(candidates, key=lambda w: abs(w.start_date - timestamp))
+        closest = min(candidates, key=lambda w: abs(w.start_time - timestamp))
 
         if max_distance is not None:
-            if abs(closest.start_date - timestamp) > max_distance:
+            if abs(closest.start_time - timestamp) > max_distance:
                 return None
 
         return closest
@@ -402,7 +416,7 @@ class WorkoutCollection(Sequence[Workout]):
         """Convert collection to a pandas DataFrame with aggregate metrics.
 
         Returns:
-            DataFrame with one row per workout. Columns include start_date,
+            DataFrame with one row per workout. Columns include start_time,
             duration, and mean/max/min/sum for each metric.
 
         Raises:
@@ -419,7 +433,7 @@ class WorkoutCollection(Sequence[Workout]):
         """Convert collection to a polars DataFrame with aggregate metrics.
 
         Returns:
-            DataFrame with one row per workout. Columns include start_date,
+            DataFrame with one row per workout. Columns include start_time,
             duration, and mean/max/min/sum for each metric.
 
         Raises:
@@ -433,9 +447,17 @@ class WorkoutCollection(Sequence[Workout]):
         return pl.DataFrame(self.to_dict())
 
     def to_dict(self) -> dict[str, Any]:
-        """Build dict representation for DataFrame export."""
+        """Convert collection to a dict of arrays.
+
+        Useful for creating DataFrames or other tabular formats. Each key maps
+        to a numpy array or list with one element per workout.
+
+        Returns:
+            Dict with keys: start_time, duration, {metric}_max, {metric}_min,
+            {metric}_mean, {metric}_sum for each metric, and zone_1 through zone_5.
+        """
         data: dict[str, Any] = {
-            "start_date": self.start_dates,
+            "start_time": self.start_times,
             "duration": self.durations,
         }
 
@@ -454,6 +476,19 @@ class WorkoutCollection(Sequence[Workout]):
 
 @dataclass(frozen=True, slots=True)
 class BodyBikeExport:
+    """Complete data from a BodyBike export archive.
+
+    This is the main object returned by load(). Access workouts via the
+    workouts attribute, which supports indexing, slicing, filtering, and
+    export to pandas/polars.
+
+    Attributes:
+        app_info: App version information.
+        app_settings: Display and device settings.
+        user_settings: User profile (weight, height, FTP, etc.).
+        workouts: Collection of all workouts in the export.
+    """
+
     app_info: AppInfo
     app_settings: ApplicationSettings
     user_settings: UserSettings
@@ -607,7 +642,7 @@ def _load_workouts(zf: ZipFile, aggregated_data: list[Any]) -> WorkoutCollection
             f"History entries without workout files: {len(orphaned)} orphaned"
         )
 
-    workouts.sort(key=lambda w: w.start_date)
+    workouts.sort(key=lambda w: w.start_time)
     return WorkoutCollection(workouts)
 
 
@@ -625,15 +660,15 @@ def _parse_workout_filename(name: str) -> int:
 
 
 def _build_workout(
-    start_time: int, aggregate: dict[str, Any], samples: list[Any]
+    start_timestamp_ms: int, aggregate: dict[str, Any], samples: list[Any]
 ) -> Workout:
     """Build a Workout object from aggregate stats and time series samples."""
     time_ms = np.array([s["startTime"] for s in samples], dtype=np.int64)
+    duration_ms = aggregate["endTime"] - aggregate["startTime"]
 
     return Workout(
-        start_date=datetime.fromtimestamp(start_time / 1000, tz=timezone.utc),
-        start_time=aggregate["startTime"],
-        end_time=aggregate["endTime"],
+        start_time=datetime.fromtimestamp(start_timestamp_ms / 1000, tz=timezone.utc),
+        duration=timedelta(milliseconds=duration_ms),
         time_ms=time_ms,
         heartrate=_build_metric(aggregate["heartrate"], samples, "heartrate"),
         cadence=_build_metric(aggregate["cadence"], samples, "cadence"),
