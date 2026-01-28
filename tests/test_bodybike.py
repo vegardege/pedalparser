@@ -1,8 +1,10 @@
 import json
+from datetime import datetime, timezone
 from io import BytesIO
 from pathlib import Path
 from zipfile import BadZipfile, ZipFile
 
+import numpy as np
 import pytest
 
 from pedalparser.bodybike import (
@@ -10,7 +12,9 @@ from pedalparser.bodybike import (
     Gender,
     InvalidBodyBikeExport,
     MedalLevel,
+    Metric,
     Unit,
+    Workout,
     load,
 )
 
@@ -153,3 +157,93 @@ def test_error_wrong_type():
         match="Invalid data in 'applicationSettings':",
     ):
         load(modified_zip({"applicationSettings": {"ranges": "not a dict"}}))
+
+
+def test_workout_collection_length(data: BodyBikeExport):
+    assert len(data.workouts) == 15
+
+
+def test_workout_collection_indexing(data: BodyBikeExport):
+    first = data.workouts[0]
+    last = data.workouts[-1]
+    assert isinstance(first, Workout)
+    assert isinstance(last, Workout)
+    assert first.start_date < last.start_date
+
+
+def test_workout_collection_iteration(data: BodyBikeExport):
+    workouts = list(data.workouts)
+    assert len(workouts) == 15
+    assert all(isinstance(w, Workout) for w in workouts)
+
+
+def test_workout_collection_contains(data: BodyBikeExport):
+    first = data.workouts[0]
+    assert first in data.workouts
+
+
+def test_workout_collection_slicing(data: BodyBikeExport):
+    first_three = data.workouts[:3]
+    assert isinstance(first_three, list)
+    assert len(first_three) == 3
+    assert first_three[0] is data.workouts[0]
+
+
+def test_workouts_sorted_by_date(data: BodyBikeExport):
+    dates = [w.start_date for w in data.workouts]
+    assert dates == sorted(dates)
+
+
+def test_workout_start_date(data: BodyBikeExport):
+    first = data.workouts[0]
+    expected = datetime.fromtimestamp(1767608564932 / 1000, tz=timezone.utc)
+    assert first.start_date == expected
+
+
+def test_workout_timing(data: BodyBikeExport):
+    first = data.workouts[0]
+    assert first.start_time == 0
+    assert first.end_time == 3601001
+
+
+def test_workout_time_ms_array(data: BodyBikeExport):
+    first = data.workouts[0]
+    assert isinstance(first.time_ms, np.ndarray)
+    assert first.time_ms.dtype == np.int64
+    assert len(first.time_ms) == 3601
+    assert first.time_ms[0] == 0
+
+
+def test_workout_power_zones(data: BodyBikeExport):
+    first = data.workouts[0]
+    assert len(first.power_zones) == 5
+    assert first.power_zones[1] == pytest.approx(0.7253540683143571)
+
+
+def test_metric_aggregate_values(data: BodyBikeExport):
+    power = data.workouts[0].power
+    assert isinstance(power, Metric)
+    assert power.mean == pytest.approx(196.98515095043686)
+    assert power.max == 284
+
+
+def test_metric_time_series(data: BodyBikeExport):
+    power = data.workouts[0].power
+    assert isinstance(power.ts, np.ndarray)
+    assert power.ts.dtype == np.float64
+    assert len(power.ts) == 3601
+    assert power.ts[0] == 0  # First sample power value
+
+
+def test_all_metrics_present(data: BodyBikeExport):
+    first = data.workouts[0]
+    for metric in [
+        first.heartrate,
+        first.cadence,
+        first.power,
+        first.distance,
+        first.calories,
+    ]:
+        assert isinstance(metric, Metric)
+        assert isinstance(metric.ts, np.ndarray)
+        assert len(metric.ts) == len(first.time_ms)

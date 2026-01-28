@@ -1,6 +1,6 @@
 # Pedal Parser
 
-An open source, zero-dependency Python library to read and parse exported data files from stationary bikes.
+An open source Python library to read and parse exported data files from stationary bikes.
 
 Currently supports [Body Bike v2.3.4](https://body-bike.com/) which is the brand I use, but feel free to contribute parsers to other versions or bikes.
 
