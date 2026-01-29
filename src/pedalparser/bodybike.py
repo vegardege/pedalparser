@@ -308,6 +308,107 @@ class Workout:
             }
         )
 
+    def to_markdown(self, sample_interval: int = 60) -> str:
+        """Convert workout to a human-readable markdown format.
+
+        Args:
+            sample_interval: Interval in seconds between time series rows.
+                Default 60 shows one row per minute. Use 1 for all data points.
+
+        Returns a markdown string with:
+        - Header with start time and duration
+        - Summary metrics (heartrate, cadence, power, speed, distance, calories)
+        - Power zone distribution
+        - Time series data table (sampled at the specified interval)
+
+        Returns:
+            Markdown-formatted string representation of the workout.
+        """
+        lines: list[str] = []
+
+        # Header
+        start_str = self.start_time.strftime("%Y-%m-%d %H:%M")
+        duration_min = round(self.duration.total_seconds() / 60)
+        lines.append(f"## Workout: {start_str} ({duration_min} min)")
+        lines.append("")
+
+        # Summary metrics
+        lines.append("### Summary")
+        lines.append("")
+        if self.heartrate.mean > 0:
+            lines.append(
+                f"- **Heart rate:** {round(self.heartrate.mean)} bpm "
+                f"({round(self.heartrate.min)}-{round(self.heartrate.max)} bpm)"
+            )
+        lines.append(
+            f"- **Cadence:** {round(self.cadence.mean)} rpm "
+            f"({round(self.cadence.min)}-{round(self.cadence.max)} rpm)"
+        )
+        lines.append(
+            f"- **Power:** {round(self.power.mean)} W "
+            f"({round(self.power.min)}-{round(self.power.max)} W)"
+        )
+        lines.append(
+            f"- **Speed:** {self.distance.mean:.1f} km/h "
+            f"({self.distance.min:.1f}-{self.distance.max:.1f} km/h)"
+        )
+        dist_km = self.distance.mean * self.duration.total_seconds() / 3600
+        lines.append(f"- **Distance:** {dist_km:.1f} km")
+        cal = self.calories.mean * self.duration.total_seconds() / 3600
+        lines.append(f"- **Calories:** {round(cal)} kcal")
+        lines.append("")
+
+        # Power zones
+        lines.append("### Power Zones")
+        lines.append("")
+        for i, zone in enumerate(self.power_zones, 1):
+            lines.append(f"- **Zone {i}:** {round(zone * 100)}%")
+        lines.append("")
+
+        # Time series table
+        lines.append("### Time Series")
+        lines.append("")
+
+        has_hr = any(v > 0 for v in self.heartrate.ts)
+
+        header = ["Time", "Cad", "Power", "Speed", "Cal"]
+        alignments = ["---:", "---:", "---:", "---:", "---:"]
+        if has_hr:
+            header.insert(1, "HR")
+            alignments.insert(1, "---:")
+        lines.append("| " + " | ".join(header) + " |")
+        lines.append("| " + " | ".join(alignments) + " |")
+
+        for i in range(len(self.time_ms)):
+            time_s = round(self.time_ms[i] / 1000)
+            if i > 0 and time_s % sample_interval != 0:
+                continue
+            row = [
+                str(time_s),
+                str(round(self.cadence.ts[i])),
+                str(round(self.power.ts[i])),
+                str(round(self.distance.ts[i], 1)),
+                str(round(self.calories.ts[i])),
+            ]
+            if has_hr:
+                row.insert(1, str(round(self.heartrate.ts[i])))
+            lines.append("| " + " | ".join(row) + " |")
+
+        # Legend
+        lines.append("")
+        legend_parts = [
+            "Time (s)",
+            "Cad = cadence (rpm)",
+            "Power (W)",
+            "Speed (km/h)",
+            "Cal = calories (kcal)",
+        ]
+        if has_hr:
+            legend_parts.insert(1, "HR = heart rate (bpm)")
+        lines.append("*" + ", ".join(legend_parts) + "*")
+
+        return "\n".join(lines)
+
 
 class WorkoutCollection(Sequence[Workout]):
     """Immutable, indexable collection of workouts sorted by start_time."""
@@ -472,6 +573,79 @@ class WorkoutCollection(Sequence[Workout]):
             data[f"zone_{i + 1}"] = [float(w.power_zones[i]) for w in self]
 
         return data
+
+    def to_markdown(self) -> str:
+        """Convert collection to a human-readable markdown table.
+
+        Returns:
+            Markdown table with one row per workout, including start time,
+            duration, metrics, and power zones. Heart rate column is omitted
+            if no workouts have heart rate data (no monitor connected).
+        """
+        if not self._workouts:
+            return "No workouts."
+
+        # Include heartrate only if any workout has HR data
+        has_hr = any(w.heartrate.mean > 0 for w in self)
+
+        lines: list[str] = []
+
+        # Build header
+        header = ["Start", "Min", "Cad", "Power", "Speed", "Dist", "Cal"]
+        if has_hr:
+            header.insert(2, "HR")
+        header.extend(["Z1", "Z2", "Z3", "Z4", "Z5"])
+        lines.append("| " + " | ".join(header) + " |")
+
+        # Alignment row
+        alignments = [":---", "---:", "---:", "---:", "---:", "---:", "---:"]
+        if has_hr:
+            alignments.insert(2, "---:")
+        alignments.extend(["---:", "---:", "---:", "---:", "---:"])
+        lines.append("| " + " | ".join(alignments) + " |")
+
+        # Data rows
+        for w in self._workouts:
+            start_str = w.start_time.strftime("%Y-%m-%d %H:%M")
+            duration_min = round(w.duration.total_seconds() / 60)
+            cadence = round(w.cadence.mean)
+            power = round(w.power.mean)
+            speed = round(w.distance.mean, 1)
+            hours = w.duration.total_seconds() / 3600
+            dist_km = round(w.distance.mean * hours, 1)
+            cal = round(w.calories.mean * hours)
+            zones = [f"{round(z * 100)}%" for z in w.power_zones]
+
+            row = [
+                start_str,
+                str(duration_min),
+                str(cadence),
+                str(power),
+                str(speed),
+                str(dist_km),
+                str(cal),
+            ]
+            if has_hr:
+                row.insert(2, str(round(w.heartrate.mean)))
+            row.extend(zones)
+            lines.append("| " + " | ".join(row) + " |")
+
+        # Legend
+        lines.append("")
+        legend_parts = [
+            "Min = duration (minutes)",
+            "Cad = cadence (rpm)",
+            "Power (W)",
+            "Speed (km/h)",
+            "Dist = distance (km)",
+            "Cal = calories (kcal)",
+            "Z1-Z5 = power zones",
+        ]
+        if has_hr:
+            legend_parts.insert(0, "HR = heart rate (bpm)")
+        lines.append("*" + ", ".join(legend_parts) + "*")
+
+        return "\n".join(lines)
 
 
 @dataclass(frozen=True, slots=True)

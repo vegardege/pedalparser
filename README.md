@@ -128,6 +128,24 @@ df = export.workouts[-1].to_pandas()  # or .to_polars()
 df.plot(x="time_ms", y="power")
 ```
 
+### Exporting to markdown
+
+Generate human-readable markdown summaries, useful for reports or LLM context:
+
+```python
+# Single workout: summary stats, power zones, and time series table
+print(export.workouts[-1].to_markdown())
+
+# Control time series granularity (default: 60s)
+print(w.to_markdown(sample_interval=10))  # Every 10 seconds
+
+# Collection: table with one row per workout
+print(export.workouts[:10].to_markdown())  # Last 10 workouts
+print(export.workouts.where(lambda w: w.power.mean > 200).to_markdown())
+```
+
+Heart rate columns are included automatically when HR data is present.
+
 ### Plotting
 
 ```python
