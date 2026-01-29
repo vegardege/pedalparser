@@ -10,7 +10,7 @@ A Python library for analyzing workout data exported from stationary bikes.
 
 ## Bike Support
 
-* [Body Bike v2.3.4](https://body-bike.com/).
+* [Body Bike v2.3.4](https://body-bike.com/) - see [format documentation](docs/BODYBIKE.md) for details and data quirks.
 
 Contributions for other bikes welcome.
 
@@ -49,13 +49,6 @@ print(ws.power.max)       # array([342, 356, 298, ...])
 print(ws.heartrate.mean)  # array([145.2, 148.1, 142.5, ...])
 ```
 
-Slicing returns a new `WorkoutCollection`, so you can chain operations:
-
-```python
-recent = export.workouts[-10:]  # Last 10 workouts
-print(recent.power.mean)        # array of 10 values
-```
-
 ### Filtering
 
 Use `where()` to filter workouts by any predicate:
@@ -74,8 +67,8 @@ recent = export.workouts.where(lambda w: w.start_time >= cutoff)
 # Chain filters
 intense = (
     export.workouts
-    .where(lambda w: w.power.mean > 150)
-    .where(lambda w: w.heartrate.mean > 140)
+    .where(lambda w: w.power.mean > 200)
+    .where(lambda w: w.heartrate.max > 180)
 )
 ```
 

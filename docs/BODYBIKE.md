@@ -106,3 +106,30 @@ Each file is a JSON array of second-by-second data points:
 | `power.value` | number | Watts |
 | `distance.value` | number | Instantaneous speed in km/h |
 | `calories.value` | number | Instantaneous calorie burn rate in kcal/h |
+
+## Data Quirks
+
+### Confusing field names
+
+The `distance` and `calories` fields are named after their cumulative result, not their per-sample meaning:
+
+| Field | Per-second samples | Aggregate `sum` |
+|-------|-------------------|-----------------|
+| `distance` | Instantaneous speed (km/h) | Total distance (km) |
+| `calories` | Burn rate (kcal/h) | Total calories (kcal) |
+
+The app computes totals by integrating these rates over time (each sample represents ~1 second).
+
+### What `sum` means per metric
+
+| Metric | `sum` meaning |
+|--------|---------------|
+| `power` | Sum of all watt readings (not particularly useful) |
+| `cadence` | Sum of all RPM readings (not particularly useful) |
+| `heartrate` | Sum of all BPM readings (not particularly useful) |
+| `distance` | **Total distance in km** (integrated from speed) |
+| `calories` | **Total calories burned** (integrated from burn rate) |
+
+### Fractional cadence
+
+Cadence values can be fractional (e.g., 69.5 RPM), likely due to sensor averaging.
