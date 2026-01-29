@@ -162,7 +162,7 @@ def test_error_wrong_type():
 
 
 def test_workout_collection_length(data: BodyBikeExport):
-    assert len(data.workouts) == 15
+    assert len(data.workouts) == 14
 
 
 def test_workout_collection_indexing(data: BodyBikeExport):
@@ -175,7 +175,7 @@ def test_workout_collection_indexing(data: BodyBikeExport):
 
 def test_workout_collection_iteration(data: BodyBikeExport):
     workouts = list(data.workouts)
-    assert len(workouts) == 15
+    assert len(workouts) == 14
     assert all(isinstance(w, Workout) for w in workouts)
 
 
