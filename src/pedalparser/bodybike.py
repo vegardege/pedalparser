@@ -186,6 +186,9 @@ class MetricAccessor:
         self._collection = collection
         self._metric = metric
 
+    def __repr__(self) -> str:
+        return f"MetricAccessor({self._metric!r}, {len(self._collection)} workouts)"
+
     @property
     def value(self) -> np.ndarray:
         return np.array(
@@ -222,7 +225,7 @@ class MetricAccessor:
         )
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(frozen=True, slots=True, repr=False)
 class Workout:
     """A single workout session with metrics and time series data.
 
@@ -255,6 +258,11 @@ class Workout:
     # they actually mean. Improve documentations once we understand it better.
     power_zones_count: int
     total: int
+
+    def __repr__(self) -> str:
+        start = self.start_time.strftime("%Y-%m-%d %H:%M")
+        mins = round(self.duration.total_seconds() / 60)
+        return f"Workout({start}, {mins} min, {round(self.power.mean)}W avg)"
 
     def to_pandas(self) -> "pd.DataFrame":
         """Convert time series to a pandas DataFrame.
@@ -417,6 +425,13 @@ class WorkoutCollection(Sequence[Workout]):
 
     def __init__(self, workouts: Iterable[Workout]):
         self._workouts: tuple[Workout, ...] = tuple(workouts)
+
+    def __repr__(self) -> str:
+        if not self._workouts:
+            return "WorkoutCollection(empty)"
+        first = self._workouts[0].start_time.strftime("%Y-%m-%d")
+        last = self._workouts[-1].start_time.strftime("%Y-%m-%d")
+        return f"WorkoutCollection({len(self._workouts)} workouts, {first} to {last})"
 
     @overload
     def __getitem__(self, index: int) -> Workout: ...
