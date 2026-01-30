@@ -1,5 +1,7 @@
 # Pedal Parser
 
+[![CI](https://github.com/vegardege/pedalparser/actions/workflows/ci.yml/badge.svg)](https://github.com/vegardege/pedalparser/actions/workflows/ci.yml)
+
 A Python library for parsing and analyzing workout data exported from stationary bikes.
 
 Load data as memory-efficient data classes with `numpy` time series and export data to `pandas`, `polars`, or markdown.
