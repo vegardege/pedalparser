@@ -1,18 +1,19 @@
 # Pedal Parser
 
-A Python library for analyzing workout data exported from stationary bikes.
+A Python library for parsing and analyzing workout data exported from stationary bikes.
 
-- Load exported archives and access workout metrics (power, heartrate, cadence, distance, calories)
-- Per-second time series data as numpy arrays
-- Aggregate statistics across workout collections
-- Filter, slice, and search workouts
-- Export to `pandas` or `polars` DataFrames
+Load data as memory-efficient data classes with `numpy` time series and export data to `pandas`, `polars`, or markdown.
 
 ## Bike Support
 
-* [Body Bike v2.3.4](https://body-bike.com/) - see [format documentation](docs/BODYBIKE.md) for details and data quirks.
+* [Body Bike](https://body-bike.com/) exports (v2.3.4)
+  * Full coverage of app info, app settings, and user settings
+  * Overview of workouts with aggregate statistics
+  * Per-second time series per workout
+  * Metrics: power, heartrate, cadence, speed, calories, and power zone distributions
+  * See [format documentation](docs/BODYBIKE.md) for details and quirks.
 
-Contributions for other bikes welcome.
+Contributions for other bikes are welcome.
 
 ## Installation
 
@@ -26,55 +27,62 @@ pip install pedalparser[polars]      # With polars support
 
 ### Loading an export
 
+Body Bike allows you to export a snapshot of the app data from the application settings. This file is ready for analysis by the library.
+
 ```python
 from pedalparser import bodybike
 
 export = bodybike.load("20260128T120516994Z_backup.zip")
 
-print(len(export.workouts))  # 73
-print(export.user_settings.weight)  # 80
-print(export.app_info.version)  # "2.3.4"
+print(export.app_info.version)         # "2.3.4"
+print(export.app_settings.theme_name)  # "BLACK_ATTACK"
+print(export.user_settings.height)     # 188
+print(len(export.workouts))            # 73
 ```
 
 ### Collection-level analysis
 
-Access metrics across all workouts with the same API - returns numpy arrays instead of scalars:
+The returned structure contains a collection of all your workouts with aggregate metrics.
+
+All metrics are available as `numpy` arrays aligning with the `ws.start_times` array:
 
 ```python
 ws = export.workouts
 
 # Same attribute path, array instead of scalar
-print(ws.power.mean)      # array([185.5, 190.2, 178.3, ...])
-print(ws.power.max)       # array([342, 356, 298, ...])
-print(ws.heartrate.mean)  # array([145.2, 148.1, 142.5, ...])
+print(ws.start_times)     # array(['2026-01-05T10:22:44.932', ...])
+print(ws.power.mean)      # array([197.0, 215.8, 297.1, ...])
+print(ws.power.max)       # array([284., 294., 407., ...])
+print(ws.calories.sum)    # array([875.6, 954.8 , 438.5, ...])
 ```
 
 ### Filtering
 
-Use `where()` to filter workouts by any predicate:
+Use `where()` to filter the workout collection by any predicate:
 
 ```python
 from datetime import datetime, timedelta, timezone
 
 # Filter by metric thresholds
-high_power = export.workouts.where(lambda w: w.power.mean > 180)
+high_power = export.workouts.where(lambda w: w.power.mean > 220)
 long_rides = export.workouts.where(lambda w: w.duration > timedelta(minutes=60))
 
 # Filter by date
 cutoff = datetime(2026, 1, 1, tzinfo=timezone.utc)
 recent = export.workouts.where(lambda w: w.start_time >= cutoff)
 
-# Chain filters
-intense = (
+# Chain filters (note that power zones are 0 indexed)
+recent_hiit_sessions = (
     export.workouts
-    .where(lambda w: w.power.mean > 200)
-    .where(lambda w: w.heartrate.max > 180)
+    .where(lambda w: w.start_time >= cutoff)
+    .where(lambda w: w.power_zones[1] + w.power_zones[2] > 0.4)
+    .where(lambda w: w.power_zones[4] > 0.4)
 )
 ```
 
 ### Finding a specific workout
 
-Use `closest_to()` to find the workout nearest to a given timestamp:
+In addition to indexing and slicing, you can use `closest_to()` to find the workout nearest to a given timestamp:
 
 ```python
 # Find workout closest to a date
@@ -86,25 +94,28 @@ w = export.workouts.closest_to("2026-01-15", max_distance=timedelta(hours=24))
 
 ### Single workout analysis
 
+Each workout contains their aggregate metrics and a per-second snapshot of each metric:
+
 ```python
 w = export.workouts[-1]  # Most recent workout
 
-# Summary statistics
-print(w.power.mean)       # 185.5
-print(w.power.max)        # 342
-print(w.heartrate.mean)   # 145.2
+# Aggregate statistics
+print(w.power.mean)       # 204.15
+print(w.power.max)        # 240
+print(w.distance.sum)     # 42.29
 
 # Time series data (numpy arrays)
-print(w.power.ts)         # array([142, 145, 148, ...])
-print(w.power.ts.std())   # numpy operations work
+print(w.cadence.ts)        # array([0, 74.5, 74., ...])
+print(w.cadence.ts.std())  # numpy operations work
 
 # Power zone distribution
-print(w.power_zones)      # (0.05, 0.45, 0.30, 0.15, 0.05)
+print(w.power_zones)      # (0.005, 0.93, 0.054, 0, 0)
+
 ```
 
 ### Exporting to pandas or polars
 
-Convert workout data to DataFrames for further analysis. Both pandas and polars are optional dependencies:
+You can convert workout data to DataFrames for further analysis. `pandas` and `polars` are optional dependencies:
 
 ```bash
 pip install pedalparser[pandas]   # or [polars]
@@ -148,6 +159,8 @@ Heart rate columns are included automatically when HR data is present.
 
 ### Plotting
 
+Due to its `numpy`-first nature, plotting or analyzing time series is straightforward with your known and loved tools:
+
 ```python
 import matplotlib.pyplot as plt
 
@@ -165,6 +178,72 @@ plt.xlabel("Date")
 plt.ylabel("Avg Power (W)")
 plt.show()
 ```
+
+## Quick Reference
+
+### BodyBikeExport
+
+| Property | Type | Description |
+| :--- | :--- | :--- |
+| `app_info.version` | `str` | App version |
+| `app_settings.theme_name` | `str` | UI theme |
+| `app_settings.ranges` | `MetricRanges` | Gauge display ranges |
+| `user_settings.gender` | `Gender` | `MALE` or `FEMALE` |
+| `user_settings.date_of_birth` | `datetime` | Date of birth |
+| `user_settings.weight` | `int` | Weight (kg) |
+| `user_settings.height` | `int` | Height (cm) |
+| `user_settings.training_level` | `TrainingLevel` | `HOURS_1_3`, `HOURS_3_5`, `HOURS_5_8`, `HOURS_8_PLUS` |
+| `user_settings.heartrate_max` | `int \| None` | Max HR (user-set or `None` for estimated) |
+| `user_settings.ftp` | `int \| None` | FTP (user-set or `None` for estimated) |
+| `user_settings.level_system` | `LevelSystem` | Medals and challenges |
+| `workouts` | `WorkoutCollection` | All workouts |
+
+### WorkoutCollection
+
+| Property/Method | Returns | Description |
+| :--- | :--- | :--- |
+| `[i]`, `[start:end]` | `Workout` / `WorkoutCollection` | Index or slice |
+| `len(collection)` | `int` | Number of workouts |
+| `start_times` | `np.ndarray` | Start times (`datetime64[ms]`) |
+| `durations` | `np.ndarray` | Durations (`timedelta64[ms]`) |
+| `power`, `heartrate`, `cadence`, `distance`, `calories` | `MetricAccessor` | Collection-level metric access |
+| `where(predicate)` | `WorkoutCollection` | Filter by predicate |
+| `closest_to(timestamp, max_distance=None)` | `Workout \| None` | Find nearest workout |
+| `to_pandas()`, `to_polars()` | `DataFrame` | One row per workout |
+| `to_dict()` | `dict` | Raw dict of arrays |
+| `to_markdown()` | `str` | Markdown table |
+
+### MetricAccessor (collection-level)
+
+| Property | Returns | Description |
+| :--- | :--- | :--- |
+| `mean`, `max`, `min`, `sum`, `value` | `np.ndarray` | Array with one element per workout |
+
+### Workout
+
+| Property | Type | Description |
+| :--- | :--- | :--- |
+| `start_time` | `datetime` | Start time (UTC) |
+| `duration` | `timedelta` | Workout duration |
+| `time_ms` | `np.ndarray` | Time axis for time series (ms) |
+| `power`, `heartrate`, `cadence`, `distance`, `calories` | `Metric` | Per-metric stats and time series |
+| `power_zones` | `tuple[float, ...]` | Fraction of time in each zone (5 zones) |
+| `to_pandas()`, `to_polars()` | `DataFrame` | Time series as DataFrame |
+| `to_markdown(sample_interval=60)` | `str` | Human-readable summary |
+
+### Metric (single workout)
+
+| Property | Type | Description |
+| :--- | :--- | :--- |
+| `mean`, `max`, `min`, `sum` | `float` | Aggregate statistics |
+| `value` | `float` | Final value at workout end |
+| `ts` | `np.ndarray` | Per-second time series |
+
+### Exceptions
+
+| Exception | Description |
+| :--- | :--- |
+| `InvalidBodyBikeExport` | Raised when archive is missing files or has invalid data |
 
 ## Development
 
