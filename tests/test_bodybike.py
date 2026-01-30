@@ -84,6 +84,26 @@ def data() -> BodyBikeExport:
     return load(FIXTURES_DIR / "bodybike.zip")
 
 
+@pytest.fixture
+def workouts(data: BodyBikeExport) -> WorkoutCollection:
+    return data.workouts
+
+
+@pytest.fixture
+def workout(workouts: WorkoutCollection) -> Workout:
+    return workouts[0]
+
+
+@pytest.fixture
+def empty_workouts(workouts: WorkoutCollection) -> WorkoutCollection:
+    return workouts.where(lambda w: False)
+
+
+#
+# Loading and Settings
+#
+
+
 def test_load_app_info(data: BodyBikeExport):
     assert data.app_info.version == "2.3.4"
 
@@ -105,6 +125,11 @@ def test_load_user_settings(data: BodyBikeExport):
     assert data.user_settings.level_system.level == 3
     assert data.user_settings.level_system.medal_level == MedalLevel.GOLD
     assert data.user_settings.level_system.gold == 7
+
+
+#
+# Error Handling
+#
 
 
 def test_error_file_not_found():
@@ -161,266 +186,423 @@ def test_error_wrong_type():
         load(modified_zip({"applicationSettings": {"ranges": "not a dict"}}))
 
 
-def test_workout_collection_length(data: BodyBikeExport):
-    assert len(data.workouts) == 14
+#
+# WorkoutCollection
+#
 
 
-def test_workout_collection_indexing(data: BodyBikeExport):
-    first = data.workouts[0]
-    last = data.workouts[-1]
+def test_workout_collection_length(workouts: WorkoutCollection):
+    assert len(workouts) == 14
+
+
+def test_workout_collection_indexing(workouts: WorkoutCollection):
+    first = workouts[0]
+    last = workouts[-1]
     assert isinstance(first, Workout)
     assert isinstance(last, Workout)
     assert first.start_time < last.start_time
 
 
-def test_workout_collection_iteration(data: BodyBikeExport):
-    workouts = list(data.workouts)
-    assert len(workouts) == 14
-    assert all(isinstance(w, Workout) for w in workouts)
+def test_workout_collection_iteration(workouts: WorkoutCollection):
+    items = list(workouts)
+    assert len(items) == 14
+    assert all(isinstance(w, Workout) for w in items)
 
 
-def test_workout_collection_contains(data: BodyBikeExport):
-    first = data.workouts[0]
-    assert first in data.workouts
+def test_workout_collection_contains(workouts: WorkoutCollection, workout: Workout):
+    assert workout in workouts
 
 
-def test_workout_collection_slicing(data: BodyBikeExport):
-    first_three = data.workouts[:3]
+def test_workout_collection_slicing(workouts: WorkoutCollection):
+    first_three = workouts[:3]
     assert isinstance(first_three, WorkoutCollection)
     assert len(first_three) == 3
-    assert first_three[0] is data.workouts[0]
+    assert first_three[0] is workouts[0]
 
 
-def test_workouts_sorted_by_date(data: BodyBikeExport):
-    dates = [w.start_time for w in data.workouts]
+def test_workouts_sorted_by_date(workouts: WorkoutCollection):
+    dates = [w.start_time for w in workouts]
     assert dates == sorted(dates)
 
 
-def test_workout_start_time(data: BodyBikeExport):
-    first = data.workouts[0]
+def test_start_times_property(workouts: WorkoutCollection):
+    times = workouts.start_times
+    assert isinstance(times, np.ndarray)
+    assert times.dtype == np.dtype("datetime64[ms]")
+    assert len(times) == len(workouts)
+    assert np.all(times[:-1] <= times[1:])
+
+
+def test_durations_property(workouts: WorkoutCollection):
+    durations = workouts.durations
+    assert isinstance(durations, np.ndarray)
+    assert durations.dtype == np.dtype("timedelta64[ms]")
+    assert len(durations) == len(workouts)
+    assert all(d > np.timedelta64(0, "ms") for d in durations)
+
+
+#
+# Workout
+#
+
+
+def test_workout_start_time(workout: Workout):
     expected = datetime.fromtimestamp(1767608564932 / 1000, tz=timezone.utc)
-    assert first.start_time == expected
+    assert workout.start_time == expected
 
 
-def test_workout_duration(data: BodyBikeExport):
-    first = data.workouts[0]
-    assert first.duration == timedelta(milliseconds=3601001)
-    assert first.duration > timedelta(hours=1)
+def test_workout_duration(workout: Workout):
+    assert workout.duration == timedelta(milliseconds=3601001)
+    assert workout.duration > timedelta(hours=1)
 
 
-def test_workout_time_ms_array(data: BodyBikeExport):
-    first = data.workouts[0]
-    assert isinstance(first.time_ms, np.ndarray)
-    assert first.time_ms.dtype == np.int64
-    assert len(first.time_ms) == 3601
-    assert first.time_ms[0] == 0
+def test_workout_time_ms_array(workout: Workout):
+    assert isinstance(workout.time_ms, np.ndarray)
+    assert workout.time_ms.dtype == np.int64
+    assert len(workout.time_ms) == 3601
+    assert workout.time_ms[0] == 0
 
 
-def test_workout_power_zones(data: BodyBikeExport):
-    first = data.workouts[0]
-    assert len(first.power_zones) == 5
-    assert first.power_zones[1] == pytest.approx(0.7253540683143571)
+def test_workout_power_zones(workout: Workout):
+    assert len(workout.power_zones) == 5
+    assert workout.power_zones[1] == pytest.approx(0.7253540683143571)
 
 
-def test_metric_aggregate_values(data: BodyBikeExport):
-    power = data.workouts[0].power
-    assert isinstance(power, Metric)
-    assert power.mean == pytest.approx(196.98515095043686)
-    assert power.max == 284
+def test_workout_repr(workout: Workout):
+    r = repr(workout)
+    assert "Workout(" in r
+    assert "2026-01-05" in r
+    assert "60 min" in r
+    assert "W avg)" in r
 
 
-def test_metric_time_series(data: BodyBikeExport):
-    power = data.workouts[0].power
-    assert isinstance(power.ts, np.ndarray)
-    assert power.ts.dtype == np.float64
-    assert len(power.ts) == 3601
-    assert power.ts[0] == 0  # First sample power value
+#
+# Metric
+#
 
 
-def test_all_metrics_present(data: BodyBikeExport):
-    first = data.workouts[0]
+def test_metric_aggregate_values(workout: Workout):
+    assert isinstance(workout.power, Metric)
+    assert workout.power.mean == pytest.approx(196.98515095043686)
+    assert workout.power.max == 284
+
+
+def test_metric_time_series(workout: Workout):
+    assert isinstance(workout.power.ts, np.ndarray)
+    assert workout.power.ts.dtype == np.float64
+    assert len(workout.power.ts) == 3601
+    assert workout.power.ts[0] == 0
+
+
+def test_all_metrics_present(workout: Workout):
     for metric in [
-        first.heartrate,
-        first.cadence,
-        first.power,
-        first.distance,
-        first.calories,
+        workout.heartrate,
+        workout.cadence,
+        workout.power,
+        workout.distance,
+        workout.calories,
     ]:
         assert isinstance(metric, Metric)
         assert isinstance(metric.ts, np.ndarray)
-        assert len(metric.ts) == len(first.time_ms)
+        assert len(metric.ts) == len(workout.time_ms)
 
 
-def test_metric_accessor_returns_accessor(data: BodyBikeExport):
-    assert isinstance(data.workouts.power, MetricAccessor)
-    assert isinstance(data.workouts.heartrate, MetricAccessor)
-    assert isinstance(data.workouts.cadence, MetricAccessor)
-    assert isinstance(data.workouts.distance, MetricAccessor)
-    assert isinstance(data.workouts.calories, MetricAccessor)
+#
+# MetricAccessor
+#
 
 
-def test_metric_accessor_mean_returns_array(data: BodyBikeExport):
-    means = data.workouts.power.mean
+def test_metric_accessor_returns_accessor(workouts: WorkoutCollection):
+    assert isinstance(workouts.power, MetricAccessor)
+    assert isinstance(workouts.heartrate, MetricAccessor)
+    assert isinstance(workouts.cadence, MetricAccessor)
+    assert isinstance(workouts.distance, MetricAccessor)
+    assert isinstance(workouts.calories, MetricAccessor)
+
+
+def test_metric_accessor_mean_returns_array(workouts: WorkoutCollection):
+    means = workouts.power.mean
     assert isinstance(means, np.ndarray)
     assert means.dtype == np.float64
-    assert len(means) == len(data.workouts)
+    assert len(means) == len(workouts)
 
 
-def test_metric_accessor_values_match_individual_workouts(data: BodyBikeExport):
-    # Collection-level access should match iterating over individual workouts
-    expected_means = np.array([w.power.mean for w in data.workouts])
-    expected_maxes = np.array([w.power.max for w in data.workouts])
-    expected_mins = np.array([w.power.min for w in data.workouts])
-    expected_sums = np.array([w.power.sum for w in data.workouts])
+def test_metric_accessor_values_match_individual_workouts(workouts: WorkoutCollection):
+    expected_means = np.array([w.power.mean for w in workouts])
+    expected_maxes = np.array([w.power.max for w in workouts])
+    expected_mins = np.array([w.power.min for w in workouts])
+    expected_sums = np.array([w.power.sum for w in workouts])
 
-    np.testing.assert_array_equal(data.workouts.power.mean, expected_means)
-    np.testing.assert_array_equal(data.workouts.power.max, expected_maxes)
-    np.testing.assert_array_equal(data.workouts.power.min, expected_mins)
-    np.testing.assert_array_equal(data.workouts.power.sum, expected_sums)
+    np.testing.assert_array_equal(workouts.power.mean, expected_means)
+    np.testing.assert_array_equal(workouts.power.max, expected_maxes)
+    np.testing.assert_array_equal(workouts.power.min, expected_mins)
+    np.testing.assert_array_equal(workouts.power.sum, expected_sums)
 
 
-def test_metric_accessor_all_metrics(data: BodyBikeExport):
-    # Verify all metric accessors work
+def test_metric_accessor_all_metrics(workouts: WorkoutCollection):
     for accessor in [
-        data.workouts.power,
-        data.workouts.heartrate,
-        data.workouts.cadence,
-        data.workouts.distance,
-        data.workouts.calories,
+        workouts.power,
+        workouts.heartrate,
+        workouts.cadence,
+        workouts.distance,
+        workouts.calories,
     ]:
-        assert len(accessor.mean) == len(data.workouts)
-        assert len(accessor.max) == len(data.workouts)
-        assert len(accessor.min) == len(data.workouts)
-        assert len(accessor.sum) == len(data.workouts)
+        assert len(accessor.mean) == len(workouts)
+        assert len(accessor.max) == len(workouts)
+        assert len(accessor.min) == len(workouts)
+        assert len(accessor.sum) == len(workouts)
+        assert len(accessor.value) == len(workouts)
 
 
-def test_sliced_collection_has_metric_accessors(data: BodyBikeExport):
-    sliced = data.workouts[:5]
+def test_metric_accessor_repr(workouts: WorkoutCollection):
+    r = repr(workouts.power)
+    assert r == "MetricAccessor('power', 14 workouts)"
+
+
+def test_sliced_collection_has_metric_accessors(workouts: WorkoutCollection):
+    sliced = workouts[:5]
     assert len(sliced.power.mean) == 5
     np.testing.assert_array_equal(
         sliced.power.mean,
-        data.workouts.power.mean[:5],
+        workouts.power.mean[:5],
     )
 
 
-def test_start_times_property(data: BodyBikeExport):
-    dates = data.workouts.start_times
-    assert isinstance(dates, np.ndarray)
-    assert dates.dtype == np.dtype("datetime64[ms]")
-    assert len(dates) == len(data.workouts)
-    # Should be sorted (oldest first)
-    assert np.all(dates[:-1] <= dates[1:])
+def test_workout_collection_repr(workouts: WorkoutCollection):
+    r = repr(workouts)
+    assert "WorkoutCollection(14 workouts" in r
+    assert "2026-01-05" in r
+    assert "2026-01-26" in r
 
 
-def test_where_returns_workout_collection(data: BodyBikeExport):
-    filtered = data.workouts.where(lambda w: True)
+def test_workout_collection_repr_empty(empty_workouts: WorkoutCollection):
+    assert repr(empty_workouts) == "WorkoutCollection(empty)"
+
+
+#
+# Filtering with where()
+#
+
+
+def test_where_returns_workout_collection(workouts: WorkoutCollection):
+    filtered = workouts.where(lambda w: True)
     assert isinstance(filtered, WorkoutCollection)
 
 
-def test_where_filters_by_predicate(data: BodyBikeExport):
-    # Filter to workouts with mean power > 250
-    high_power = data.workouts.where(lambda w: w.power.mean > 250)
+def test_where_filters_by_predicate(workouts: WorkoutCollection):
+    high_power = workouts.where(lambda w: w.power.mean > 250)
     assert len(high_power) > 0
-    assert len(high_power) < len(data.workouts)
+    assert len(high_power) < len(workouts)
     assert all(w.power.mean > 250 for w in high_power)
 
 
-def test_where_preserves_order(data: BodyBikeExport):
-    filtered = data.workouts.where(lambda w: True)
-    for orig, filt in zip(data.workouts, filtered):
+def test_where_preserves_order(workouts: WorkoutCollection):
+    filtered = workouts.where(lambda w: True)
+    for orig, filt in zip(workouts, filtered):
         assert orig is filt
 
 
-def test_where_empty_result(data: BodyBikeExport):
-    # No workout has negative power
-    empty = data.workouts.where(lambda w: w.power.mean < 0)
+def test_where_empty_result(workouts: WorkoutCollection):
+    empty = workouts.where(lambda w: w.power.mean < 0)
     assert isinstance(empty, WorkoutCollection)
     assert len(empty) == 0
 
 
-def test_where_all_match(data: BodyBikeExport):
-    # All workouts have positive duration
-    all_workouts = data.workouts.where(lambda w: w.duration > timedelta(0))
-    assert len(all_workouts) == len(data.workouts)
+def test_where_all_match(workouts: WorkoutCollection):
+    all_workouts = workouts.where(lambda w: w.duration > timedelta(0))
+    assert len(all_workouts) == len(workouts)
 
 
-def test_where_has_metric_accessors(data: BodyBikeExport):
-    filtered = data.workouts.where(lambda w: w.power.mean > 250)
+def test_where_has_metric_accessors(workouts: WorkoutCollection):
+    filtered = workouts.where(lambda w: w.power.mean > 250)
     assert isinstance(filtered.power, MetricAccessor)
     assert len(filtered.power.mean) == len(filtered)
 
 
-def test_where_chained(data: BodyBikeExport):
-    # Chain multiple where calls
-    result = data.workouts.where(lambda w: w.power.mean > 150).where(
+def test_where_chained(workouts: WorkoutCollection):
+    result = workouts.where(lambda w: w.power.mean > 150).where(
         lambda w: w.heartrate.mean > 100
     )
     assert isinstance(result, WorkoutCollection)
     assert all(w.power.mean > 150 and w.heartrate.mean > 100 for w in result)
 
 
-def test_closest_to_exact_match(data: BodyBikeExport):
-    # Search for exact timestamp of first workout
-    first = data.workouts[0]
-    found = data.workouts.closest_to(first.start_time)
-    assert found is first
+#
+# Finding with closest_to()
+#
 
 
-def test_closest_to_string_timestamp(data: BodyBikeExport):
-    first = data.workouts[0]
-    found = data.workouts.closest_to(first.start_time.isoformat())
-    assert found is first
+def test_closest_to_exact_match(workouts: WorkoutCollection, workout: Workout):
+    found = workouts.closest_to(workout.start_time)
+    assert found is workout
 
 
-def test_closest_to_between_workouts(data: BodyBikeExport):
-    # Search for time between first and second workout
-    first = data.workouts[0]
-    second = data.workouts[1]
+def test_closest_to_string_timestamp(workouts: WorkoutCollection, workout: Workout):
+    found = workouts.closest_to(workout.start_time.isoformat())
+    assert found is workout
+
+
+def test_closest_to_between_workouts(workouts: WorkoutCollection):
+    first = workouts[0]
+    second = workouts[1]
     midpoint = first.start_time + (second.start_time - first.start_time) / 2
-
-    # Should return whichever is closer
-    found = data.workouts.closest_to(midpoint)
+    found = workouts.closest_to(midpoint)
     assert found in (first, second)
 
 
-def test_closest_to_before_all(data: BodyBikeExport):
-    # Search for time before all workouts
-    first = data.workouts[0]
-    before = first.start_time - timedelta(days=365)
-    found = data.workouts.closest_to(before)
-    assert found is first
+def test_closest_to_before_all(workouts: WorkoutCollection, workout: Workout):
+    before = workout.start_time - timedelta(days=365)
+    found = workouts.closest_to(before)
+    assert found is workout
 
 
-def test_closest_to_after_all(data: BodyBikeExport):
-    # Search for time after all workouts
-    last = data.workouts[-1]
+def test_closest_to_after_all(workouts: WorkoutCollection):
+    last = workouts[-1]
     after = last.start_time + timedelta(days=365)
-    found = data.workouts.closest_to(after)
+    found = workouts.closest_to(after)
     assert found is last
 
 
-def test_closest_to_empty_collection(data: BodyBikeExport):
-    empty = data.workouts.where(lambda w: False)
-    assert empty.closest_to(datetime.now(timezone.utc)) is None
+def test_closest_to_empty_collection(empty_workouts: WorkoutCollection):
+    assert empty_workouts.closest_to(datetime.now(timezone.utc)) is None
 
 
-def test_closest_to_max_distance_within(data: BodyBikeExport):
-    first = data.workouts[0]
-    near = first.start_time + timedelta(hours=1)
-    found = data.workouts.closest_to(near, max_distance=timedelta(hours=2))
-    assert found is first
+def test_closest_to_max_distance_within(workouts: WorkoutCollection, workout: Workout):
+    near = workout.start_time + timedelta(hours=1)
+    found = workouts.closest_to(near, max_distance=timedelta(hours=2))
+    assert found is workout
 
 
-def test_closest_to_max_distance_exceeded(data: BodyBikeExport):
-    first = data.workouts[0]
-    far = first.start_time - timedelta(days=365)
-    found = data.workouts.closest_to(far, max_distance=timedelta(days=1))
+def test_closest_to_max_distance_exceeded(
+    workouts: WorkoutCollection, workout: Workout
+):
+    far = workout.start_time - timedelta(days=365)
+    found = workouts.closest_to(far, max_distance=timedelta(days=1))
     assert found is None
 
 
-def test_closest_to_naive_datetime(data: BodyBikeExport):
-    # Naive datetime should be treated as UTC
-    first = data.workouts[0]
-    naive = first.start_time.replace(tzinfo=None)
-    found = data.workouts.closest_to(naive)
-    assert found is first
+def test_closest_to_naive_datetime(workouts: WorkoutCollection, workout: Workout):
+    naive = workout.start_time.replace(tzinfo=None)
+    found = workouts.closest_to(naive)
+    assert found is workout
+
+
+#
+# DataFrame Exports
+#
+
+
+def test_workout_to_pandas(workout: Workout):
+    import pandas as pd
+
+    df = workout.to_pandas()
+
+    assert isinstance(df, pd.DataFrame)
+    assert len(df) == len(workout.time_ms)
+    assert list(df.columns) == [
+        "time_ms",
+        "power",
+        "heartrate",
+        "cadence",
+        "distance",
+        "calories",
+    ]
+    np.testing.assert_array_equal(df["power"].values, workout.power.ts)
+
+
+def test_workout_to_polars(workout: Workout):
+    import polars as pl
+
+    df = workout.to_polars()
+
+    assert isinstance(df, pl.DataFrame)
+    assert len(df) == len(workout.time_ms)
+    assert df.columns == [
+        "time_ms",
+        "power",
+        "heartrate",
+        "cadence",
+        "distance",
+        "calories",
+    ]
+    np.testing.assert_array_equal(df["power"].to_numpy(), workout.power.ts)
+
+
+def test_collection_to_pandas(workouts: WorkoutCollection):
+    import pandas as pd
+
+    df = workouts.to_pandas()
+
+    assert isinstance(df, pd.DataFrame)
+    assert len(df) == len(workouts)
+    assert "start_time" in df.columns
+    assert "power_mean" in df.columns
+    assert "zone_1" in df.columns
+    np.testing.assert_array_equal(df["power_mean"].values, workouts.power.mean)
+
+
+def test_collection_to_polars(workouts: WorkoutCollection):
+    import polars as pl
+
+    df = workouts.to_polars()
+
+    assert isinstance(df, pl.DataFrame)
+    assert len(df) == len(workouts)
+    assert "start_time" in df.columns
+    assert "power_mean" in df.columns
+    assert "zone_1" in df.columns
+    np.testing.assert_array_equal(df["power_mean"].to_numpy(), workouts.power.mean)
+
+
+def test_collection_to_dict(workouts: WorkoutCollection):
+    d = workouts.to_dict()
+
+    assert isinstance(d, dict)
+    assert all(isinstance(v, np.ndarray) for v in d.values())
+    assert "start_time" in d
+    assert "power_mean" in d
+    assert "zone_5" in d
+    assert len(d["power_mean"]) == len(workouts)
+
+
+#
+# Markdown Exports
+#
+
+
+def test_workout_to_markdown(workout: Workout):
+    md = workout.to_markdown()
+
+    assert isinstance(md, str)
+    assert "## Workout:" in md
+    assert "### Summary" in md
+    assert "### Power Zones" in md
+    assert "### Time Series" in md
+    assert "Power (W)" in md
+
+
+def test_workout_to_markdown_custom_interval(workout: Workout):
+    md_default = workout.to_markdown()
+    md_10s = workout.to_markdown(sample_interval=10)
+
+    # More rows with smaller interval
+    default_rows = [line for line in md_default.split("\n") if line.startswith("|")]
+    rows_10s = [line for line in md_10s.split("\n") if line.startswith("|")]
+    assert len(rows_10s) > len(default_rows)
+
+
+def test_collection_to_markdown(workouts: WorkoutCollection):
+    md = workouts.to_markdown()
+
+    assert isinstance(md, str)
+    assert "| Start |" in md
+    assert "| Power |" in md
+    # Header + separator + 14 data rows = 16 lines starting with |
+    table_rows = [line for line in md.split("\n") if line.startswith("|")]
+    assert len(table_rows) == 16
+
+
+def test_empty_collection_to_markdown(empty_workouts: WorkoutCollection):
+    md = empty_workouts.to_markdown()
+
+    assert md == "No workouts."
