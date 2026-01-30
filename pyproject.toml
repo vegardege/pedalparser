@@ -1,15 +1,38 @@
 [project]
 name = "pedalparser"
 version = "0.1.0"
-description = "Read and parse exported archives from your BodyBike"
+description = "Parse and analyze workout data exported from stationary bikes"
 readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE.md"]
 authors = [
     { name = "Vegard Egeland", email = "vegardegeland@gmail.com" }
 ]
 requires-python = ">=3.11"
+keywords = ["cycling", "workout", "fitness", "bodybike", "exercise"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Topic :: Scientific/Engineering :: Information Analysis",
+    "Typing :: Typed",
+]
 dependencies = [
     "numpy>=1.24",
 ]
+
+[project.urls]
+Documentation = "https://github.com/vegardege/pedalparser"
+Repository = "https://github.com/vegardege/pedalparser"
+Issues = "https://github.com/vegardege/pedalparser/issues"
+Changelog = "https://github.com/vegardege/pedalparser/blob/master/CHANGELOG.md"
 
 [project.optional-dependencies]
 pandas = ["pandas"]
