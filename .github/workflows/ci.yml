@@ -1,0 +1,30 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - "main"
+  pull_request:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.11", "3.12", "3.13", "3.14"]
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v7
+
+      - name: Lint
+        run: uv run --python ${{ matrix.python-version }} ruff check
+
+      - name: Type check
+        run: uv run --python ${{ matrix.python-version }} ty check
+
+      - name: Test
+        run: uv run --python ${{ matrix.python-version }} pytest
