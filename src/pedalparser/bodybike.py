@@ -334,13 +334,11 @@ class Workout:
         """
         lines: list[str] = []
 
-        # Header
         start_str = self.start_time.strftime("%Y-%m-%d %H:%M")
         duration_min = round(self.duration.total_seconds() / 60)
         lines.append(f"## Workout: {start_str} ({duration_min} min)")
         lines.append("")
 
-        # Summary metrics
         lines.append("### Summary")
         lines.append("")
         if self.heartrate.mean > 0:
@@ -366,14 +364,12 @@ class Workout:
         lines.append(f"- **Calories:** {round(cal)} kcal")
         lines.append("")
 
-        # Power zones
         lines.append("### Power Zones")
         lines.append("")
         for i, zone in enumerate(self.power_zones, 1):
             lines.append(f"- **Zone {i}:** {round(zone * 100)}%")
         lines.append("")
 
-        # Time series table
         lines.append("### Time Series")
         lines.append("")
 
@@ -402,7 +398,6 @@ class Workout:
                 row.insert(1, str(round(self.heartrate.ts[i])))
             lines.append("| " + " | ".join(row) + " |")
 
-        # Legend
         lines.append("")
         legend_parts = [
             "Time (s)",
@@ -562,17 +557,17 @@ class WorkoutCollection(Sequence[Workout]):
 
         return pl.DataFrame(self.to_dict())
 
-    def to_dict(self) -> dict[str, Any]:
+    def to_dict(self) -> dict[str, np.ndarray]:
         """Convert collection to a dict of arrays.
 
         Useful for creating DataFrames or other tabular formats. Each key maps
-        to a numpy array or list with one element per workout.
+        to a numpy array with one element per workout.
 
         Returns:
             Dict with keys: start_time, duration, {metric}_max, {metric}_min,
             {metric}_mean, {metric}_sum for each metric, and zone_1 through zone_5.
         """
-        data: dict[str, Any] = {
+        data: dict[str, np.ndarray] = {
             "start_time": self.start_times,
             "duration": self.durations,
         }
@@ -585,7 +580,9 @@ class WorkoutCollection(Sequence[Workout]):
             data[f"{name}_sum"] = accessor.sum
 
         for i in range(5):
-            data[f"zone_{i + 1}"] = [float(w.power_zones[i]) for w in self]
+            data[f"zone_{i + 1}"] = np.array(
+                [w.power_zones[i] for w in self], dtype=np.float64
+            )
 
         return data
 
@@ -600,26 +597,24 @@ class WorkoutCollection(Sequence[Workout]):
         if not self._workouts:
             return "No workouts."
 
-        # Include heartrate only if any workout has HR data
+        # The app will only log heartrate if a monitor is connected. When this
+        # was not the case it's all 0, and should be excluded from the table.
         has_hr = any(w.heartrate.mean > 0 for w in self)
 
         lines: list[str] = []
 
-        # Build header
         header = ["Start", "Min", "Cad", "Power", "Speed", "Dist", "Cal"]
         if has_hr:
             header.insert(2, "HR")
         header.extend(["Z1", "Z2", "Z3", "Z4", "Z5"])
         lines.append("| " + " | ".join(header) + " |")
 
-        # Alignment row
         alignments = [":---", "---:", "---:", "---:", "---:", "---:", "---:"]
         if has_hr:
             alignments.insert(2, "---:")
         alignments.extend(["---:", "---:", "---:", "---:", "---:"])
         lines.append("| " + " | ".join(alignments) + " |")
 
-        # Data rows
         for w in self._workouts:
             start_str = w.start_time.strftime("%Y-%m-%d %H:%M")
             duration_min = round(w.duration.total_seconds() / 60)
@@ -645,7 +640,6 @@ class WorkoutCollection(Sequence[Workout]):
             row.extend(zones)
             lines.append("| " + " | ".join(row) + " |")
 
-        # Legend
         lines.append("")
         legend_parts = [
             "Min = duration (minutes)",
