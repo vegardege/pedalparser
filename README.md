@@ -1,10 +1,11 @@
 # Pedal Parser
 
 [![CI](https://github.com/vegardege/pedalparser/actions/workflows/ci.yml/badge.svg)](https://github.com/vegardege/pedalparser/actions/workflows/ci.yml)
+[![PyPI](https://img.shields.io/pypi/v/pedalparser)](https://pypi.org/project/pedalparser/)
 
 `pedalparser` is a Python library for parsing workout data from your [Body Bike](https://body-bike.com/).
 
-Data is loaded as `numpy` time series with export helpers for `pandas`, `polars`, or markdown. The `numpy`-first approach allows you to use the data efficiently with the tools you know and love, analyzing or plotting selections of the data:
+Time series are loaded as `numpy` arrays with export helpers for `pandas`, `polars`, or markdown. The `numpy`-first approach allows you to use the data efficiently with the tools you know and love, analyzing or plotting selections of the data:
 
 ![Workout timeline](https://raw.githubusercontent.com/vegardege/pedalparser/main/assets/workout-timeline.png)
 
@@ -33,7 +34,7 @@ pip install pedalparser[polars]      # With polars support
 
 ### Loading an export
 
-Body Bike allows you to export a snapshot of the app data from the application settings. This file is ready for analysis by the library.
+Body Bike allows you to export a snapshot of the app data by clicking the "Export" button in Application Settings. The full content of the resulting zip file can be parsed by `pedalparser`:
 
 ```python
 from pedalparser import bodybike
@@ -50,7 +51,7 @@ print(len(export.workouts))            # 73
 
 The returned structure contains a collection of all your workouts with aggregate metrics.
 
-All metrics are available as `numpy` arrays aligning with the `ws.start_times` array:
+Metric aggregates are available as `numpy` arrays, aligned with the `ws.start_times` array:
 
 ```python
 ws = export.workouts
@@ -100,7 +101,7 @@ w = export.workouts.closest_to("2026-01-15", max_distance=timedelta(hours=24))
 
 ### Single workout analysis
 
-Each workout contains their aggregate metrics and a per-second snapshot of each metric:
+Each workout contains aggregate values and per-second time series for each of the logged metrics:
 
 ```python
 w = export.workouts[-1]  # Most recent workout
@@ -116,12 +117,11 @@ print(w.cadence.ts.std())  # numpy operations work
 
 # Power zone distribution
 print(w.power_zones)      # (0.005, 0.93, 0.054, 0, 0)
-
 ```
 
 ### Exporting to pandas or polars
 
-You can convert workout data to DataFrames for further analysis. `pandas` and `polars` are optional dependencies:
+You can convert workout data to DataFrames for more complex analysis. `pandas` and `polars` are optional dependencies:
 
 ```bash
 pip install pedalparser[pandas]   # or [polars]
@@ -147,7 +147,7 @@ df.plot(x="time_ms", y="power")
 
 ### Exporting to markdown
 
-Generate human-readable markdown summaries, useful for reports or LLM context:
+The library also lets you generate human-readable markdown summaries, useful for reports or as input to an LLM:
 
 ```python
 # Single workout: summary stats, power zones, and time series table
@@ -161,9 +161,11 @@ print(export.workouts[:10].to_markdown())  # Last 10 workouts
 print(export.workouts.where(lambda w: w.power.mean > 200).to_markdown())
 ```
 
-Heart rate columns are included automatically when HR data is present.
+Heart rate columns are included automatically when data is present, and ignored if no heart rate monitor was connected during the workout.
 
 ### Plotting
+
+Thanks to the library's use of `numpy` arrays, plotting the time series is trivial:
 
 ```python
 import matplotlib.pyplot as plt
