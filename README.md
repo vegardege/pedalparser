@@ -2,9 +2,13 @@
 
 [![CI](https://github.com/vegardege/pedalparser/actions/workflows/ci.yml/badge.svg)](https://github.com/vegardege/pedalparser/actions/workflows/ci.yml)
 
-A Python library for parsing and analyzing workout data exported from stationary bikes.
+`pedalparser` is a Python library for parsing workout data from your [Body Bike](https://body-bike.com/).
 
-Load data as memory-efficient data classes with `numpy` time series and export data to `pandas`, `polars`, or markdown.
+Data is loaded as `numpy` time series with export helpers for `pandas`, `polars`, or markdown. The `numpy`-first approach allows you to use the data efficiently with the tools you know and love, analyzing or plotting selections of the data:
+
+![Workout timeline](https://raw.githubusercontent.com/vegardege/pedalparser/main/assets/workout-timeline.png)
+
+![Power and cadence](https://raw.githubusercontent.com/vegardege/pedalparser/main/assets/power-and-cadence.png)
 
 ## Bike Support
 
@@ -160,8 +164,6 @@ print(export.workouts.where(lambda w: w.power.mean > 200).to_markdown())
 Heart rate columns are included automatically when HR data is present.
 
 ### Plotting
-
-Due to its `numpy`-first nature, plotting or analyzing time series is straightforward with your known and loved tools:
 
 ```python
 import matplotlib.pyplot as plt
