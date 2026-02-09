@@ -172,7 +172,7 @@ import matplotlib.pyplot as plt
 
 # Plot power over time for a single workout
 w = export.workouts[-1]
-plt.plot(w.time_ms / 1000 / 60, w.power.ts)
+plt.plot(w.timestamps / 1000 / 60, w.power.ts)
 plt.xlabel("Time (minutes)")
 plt.ylabel("Power (W)")
 plt.show()
@@ -231,7 +231,7 @@ plt.show()
 | :--- | :--- | :--- |
 | `start_time` | `datetime` | Start time (UTC) |
 | `duration` | `timedelta` | Workout duration |
-| `time_ms` | `np.ndarray` | Time axis for time series (ms) |
+| `timestamps` | `np.ndarray` | Time axis for time series (ms) |
 | `power`, `heartrate`, `cadence`, `distance`, `calories` | `Metric` | Per-metric stats and time series |
 | `power_zones` | `tuple[float, ...]` | Fraction of time in each zone (5 zones) |
 | `to_pandas()`, `to_polars()` | `DataFrame` | Time series as DataFrame |

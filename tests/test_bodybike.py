@@ -257,11 +257,11 @@ def test_workout_duration(workout: Workout):
     assert workout.duration > timedelta(hours=1)
 
 
-def test_workout_time_ms_array(workout: Workout):
-    assert isinstance(workout.time_ms, np.ndarray)
-    assert workout.time_ms.dtype == np.int64
-    assert len(workout.time_ms) == 3601
-    assert workout.time_ms[0] == 0
+def test_workout_timestamps_array(workout: Workout):
+    assert isinstance(workout.timestamps, np.ndarray)
+    assert workout.timestamps.dtype == np.int64
+    assert len(workout.timestamps) == 3601
+    assert workout.timestamps[0] == 0
 
 
 def test_workout_power_zones(workout: Workout):
@@ -305,7 +305,7 @@ def test_all_metrics_present(workout: Workout):
     ]:
         assert isinstance(metric, Metric)
         assert isinstance(metric.ts, np.ndarray)
-        assert len(metric.ts) == len(workout.time_ms)
+        assert len(metric.ts) == len(workout.timestamps)
 
 
 #
@@ -499,7 +499,7 @@ def test_workout_to_pandas(workout: Workout):
     df = workout.to_pandas()
 
     assert isinstance(df, pd.DataFrame)
-    assert len(df) == len(workout.time_ms)
+    assert len(df) == len(workout.timestamps)
     assert list(df.columns) == [
         "time_ms",
         "power",
@@ -517,7 +517,7 @@ def test_workout_to_polars(workout: Workout):
     df = workout.to_polars()
 
     assert isinstance(df, pl.DataFrame)
-    assert len(df) == len(workout.time_ms)
+    assert len(df) == len(workout.timestamps)
     assert df.columns == [
         "time_ms",
         "power",
@@ -638,11 +638,11 @@ def test_to_sqlite_timeseries(data: BodyBikeExport, tmp_path: Path):
     count = con.execute(
         "SELECT COUNT(*) FROM timeseries WHERE workout_id = 1"
     ).fetchone()[0]
-    assert count == len(workout.time_ms)
+    assert count == len(workout.timestamps)
 
     row = con.execute(
-        "SELECT power FROM timeseries WHERE workout_id = 1 AND time = ?",
-        (int(workout.time_ms[100]),),
+        "SELECT power FROM timeseries WHERE workout_id = 1 AND timestamp = ?",
+        (int(workout.timestamps[100]),),
     ).fetchone()
     assert row[0] == pytest.approx(float(workout.power.ts[100]))
     con.close()
@@ -672,7 +672,7 @@ def test_to_sqlite_schema(data: BodyBikeExport, tmp_path: Path):
         row[1] for row in con.execute("PRAGMA table_info(timeseries)").fetchall()
     ]
     assert "workout_id" in ts_cols
-    assert "time" in ts_cols
+    assert "timestamp" in ts_cols
     assert "speed" in ts_cols
     con.close()
 

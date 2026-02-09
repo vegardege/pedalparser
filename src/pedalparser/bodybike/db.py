@@ -37,13 +37,13 @@ CREATE TABLE workouts (
 CREATE TABLE timeseries (
     workout_id  INTEGER NOT NULL
                     REFERENCES workouts(id),
-    time        INTEGER NOT NULL,
+    timestamp   INTEGER NOT NULL,
     power       REAL,
     heartrate   REAL,
     cadence     REAL,
     speed       REAL,
     calories    REAL,
-    PRIMARY KEY (workout_id, time)
+    PRIMARY KEY (workout_id, timestamp)
 );
 """
 
@@ -94,21 +94,21 @@ def write_sqlite(export: BodyBikeExport, path: str | PathLike[str]) -> Path:
             con.executemany(
                 """
                 INSERT INTO timeseries
-                    (workout_id, time, power, heartrate, cadence, speed, calories)
+                    (workout_id, timestamp, power, heartrate, cadence, speed, calories)
                 VALUES
                     (?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     (
                         workout_id,
-                        int(workout.time_ms[i]),
+                        int(workout.timestamps[i]),
                         float(workout.power.ts[i]),
                         float(workout.heartrate.ts[i]),
                         float(workout.cadence.ts[i]),
                         float(workout.distance.ts[i]),
                         float(workout.calories.ts[i]),
                     )
-                    for i in range(len(workout.time_ms))
+                    for i in range(len(workout.timestamps))
                 ),
             )
 
