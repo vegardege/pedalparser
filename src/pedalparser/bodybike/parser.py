@@ -199,13 +199,13 @@ def _build_workout(
     start_timestamp_ms: int, aggregate: dict[str, Any], samples: list[Any]
 ) -> Workout:
     """Build a Workout object from aggregate stats and time series samples."""
-    time_ms = np.array([s["startTime"] for s in samples], dtype=np.int64)
+    timestamps = np.array([s["startTime"] for s in samples], dtype=np.int64)
     duration_ms = aggregate["endTime"] - aggregate["startTime"]
 
     return Workout(
         start_time=datetime.fromtimestamp(start_timestamp_ms / 1000, tz=timezone.utc),
         duration=timedelta(milliseconds=duration_ms),
-        time_ms=time_ms,
+        timestamps=timestamps,
         heartrate=_build_metric(aggregate["heartrate"], samples, "heartrate"),
         cadence=_build_metric(aggregate["cadence"], samples, "cadence"),
         power=_build_metric(aggregate["power"], samples, "power"),

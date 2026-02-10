@@ -1,4 +1,5 @@
 import json
+import sqlite3
 from datetime import datetime, timedelta, timezone
 from io import BytesIO
 from pathlib import Path
@@ -256,11 +257,11 @@ def test_workout_duration(workout: Workout):
     assert workout.duration > timedelta(hours=1)
 
 
-def test_workout_time_ms_array(workout: Workout):
-    assert isinstance(workout.time_ms, np.ndarray)
-    assert workout.time_ms.dtype == np.int64
-    assert len(workout.time_ms) == 3601
-    assert workout.time_ms[0] == 0
+def test_workout_timestamps_array(workout: Workout):
+    assert isinstance(workout.timestamps, np.ndarray)
+    assert workout.timestamps.dtype == np.int64
+    assert len(workout.timestamps) == 3601
+    assert workout.timestamps[0] == 0
 
 
 def test_workout_power_zones(workout: Workout):
@@ -304,7 +305,7 @@ def test_all_metrics_present(workout: Workout):
     ]:
         assert isinstance(metric, Metric)
         assert isinstance(metric.ts, np.ndarray)
-        assert len(metric.ts) == len(workout.time_ms)
+        assert len(metric.ts) == len(workout.timestamps)
 
 
 #
@@ -498,7 +499,7 @@ def test_workout_to_pandas(workout: Workout):
     df = workout.to_pandas()
 
     assert isinstance(df, pd.DataFrame)
-    assert len(df) == len(workout.time_ms)
+    assert len(df) == len(workout.timestamps)
     assert list(df.columns) == [
         "time_ms",
         "power",
@@ -516,7 +517,7 @@ def test_workout_to_polars(workout: Workout):
     df = workout.to_polars()
 
     assert isinstance(df, pl.DataFrame)
-    assert len(df) == len(workout.time_ms)
+    assert len(df) == len(workout.timestamps)
     assert df.columns == [
         "time_ms",
         "power",
@@ -606,3 +607,82 @@ def test_empty_collection_to_markdown(empty_workouts: WorkoutCollection):
     md = empty_workouts.to_markdown()
 
     assert md == "No workouts."
+
+
+#
+# SQLite Export
+#
+
+
+def test_to_sqlite(data: BodyBikeExport, tmp_path: Path):
+    db_path = data.to_sqlite(tmp_path / "workouts.db")
+
+    con = sqlite3.connect(db_path)
+    rows = con.execute("SELECT * FROM workouts").fetchall()
+    assert len(rows) == 14
+
+    first = con.execute(
+        "SELECT start_time, duration, power_mean FROM workouts WHERE id = 1"
+    ).fetchone()
+    assert first[0] == data.workouts[0].start_time.isoformat()
+    assert first[1] == data.workouts[0].duration.total_seconds()
+    assert first[2] == pytest.approx(data.workouts[0].power.mean)
+    con.close()
+
+
+def test_to_sqlite_timeseries(data: BodyBikeExport, tmp_path: Path):
+    db_path = data.to_sqlite(tmp_path / "workouts.db")
+    workout = data.workouts[0]
+
+    con = sqlite3.connect(db_path)
+    count = con.execute(
+        "SELECT COUNT(*) FROM timeseries WHERE workout_id = 1"
+    ).fetchone()[0]
+    assert count == len(workout.timestamps)
+
+    row = con.execute(
+        "SELECT power FROM timeseries WHERE workout_id = 1 AND timestamp = ?",
+        (int(workout.timestamps[100]),),
+    ).fetchone()
+    assert row[0] == pytest.approx(float(workout.power.ts[100]))
+    con.close()
+
+
+def test_to_sqlite_schema(data: BodyBikeExport, tmp_path: Path):
+    db_path = data.to_sqlite(tmp_path / "workouts.db")
+
+    con = sqlite3.connect(db_path)
+    tables = {
+        row[0]
+        for row in con.execute(
+            "SELECT name FROM sqlite_master WHERE type='table'"
+        ).fetchall()
+    }
+    assert {"workouts", "timeseries"} <= tables
+
+    workout_cols = [
+        row[1] for row in con.execute("PRAGMA table_info(workouts)").fetchall()
+    ]
+    assert "power_mean" in workout_cols
+    assert "hr_mean" in workout_cols
+    assert "distance" in workout_cols
+    assert "zone_1" in workout_cols
+
+    ts_cols = [
+        row[1] for row in con.execute("PRAGMA table_info(timeseries)").fetchall()
+    ]
+    assert "workout_id" in ts_cols
+    assert "timestamp" in ts_cols
+    assert "speed" in ts_cols
+    con.close()
+
+
+def test_to_sqlite_overwrites(data: BodyBikeExport, tmp_path: Path):
+    db_path = tmp_path / "workouts.db"
+    data.to_sqlite(db_path)
+    data.to_sqlite(db_path)
+
+    con = sqlite3.connect(db_path)
+    count = con.execute("SELECT COUNT(*) FROM workouts").fetchone()[0]
+    assert count == 14
+    con.close()

@@ -3,6 +3,8 @@ from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from enum import IntEnum, StrEnum
+from os import PathLike
+from pathlib import Path
 from typing import TYPE_CHECKING, Callable, overload
 
 import numpy as np
@@ -149,7 +151,7 @@ class Metric:
         min: Minimum value during workout.
         mean: Average value during workout.
         sum: Sum of all values during workout.
-        ts: Per-second time series as numpy array. Use workout.time_ms for
+        ts: Per-second time series as numpy array. Use workout.timestamps for
             the corresponding time axis.
     """
 
@@ -227,7 +229,7 @@ class Workout:
         duration: Workout length.
         power, heartrate, cadence, distance, calories: Metric objects with
             summary stats (.mean, .max, etc.) and time series (.ts).
-        time_ms: Shared time axis for all metric time series (milliseconds).
+        timestamps: Shared time axis for all metric time series (milliseconds).
         power_zones: Fraction of time spent in each power zone (5 zones).
     """
 
@@ -235,7 +237,7 @@ class Workout:
     duration: timedelta
 
     # Shared time axis for all metrics
-    time_ms: np.ndarray
+    timestamps: np.ndarray
 
     # Metrics aggregates and time series per second
     heartrate: Metric
@@ -274,7 +276,7 @@ class Workout:
 
         return pd.DataFrame(
             {
-                "time_ms": self.time_ms,
+                "time_ms": self.timestamps,
                 "power": self.power.ts,
                 "heartrate": self.heartrate.ts,
                 "cadence": self.cadence.ts,
@@ -300,7 +302,7 @@ class Workout:
 
         return pl.DataFrame(
             {
-                "time_ms": self.time_ms,
+                "time_ms": self.timestamps,
                 "power": self.power.ts,
                 "heartrate": self.heartrate.ts,
                 "cadence": self.cadence.ts,
@@ -376,8 +378,8 @@ class Workout:
         lines.append("| " + " | ".join(header) + " |")
         lines.append("| " + " | ".join(alignments) + " |")
 
-        for i in range(len(self.time_ms)):
-            time_s = round(self.time_ms[i] / 1000)
+        for i in range(len(self.timestamps)):
+            time_s = round(self.timestamps[i] / 1000)
             if i > 0 and time_s % sample_interval != 0:
                 continue
             row = [
@@ -669,3 +671,19 @@ class BodyBikeExport:
     app_settings: ApplicationSettings
     user_settings: UserSettings
     workouts: WorkoutCollection
+
+    def to_sqlite(self, path: str | PathLike[str]) -> Path:
+        """Export all workouts to a SQLite database.
+
+        Creates two tables: ``workouts`` (summary per session) and
+        ``timeseries`` (per-second samples). Overwrites if the file exists.
+
+        Args:
+            path: File path for the database.
+
+        Returns:
+            The resolved Path of the written file.
+        """
+        from pedalparser.bodybike.db import write_sqlite
+
+        return write_sqlite(self, path)
