@@ -565,7 +565,9 @@ class WorkoutCollection(Sequence[Workout]):
         """
         data: dict[str, np.ndarray] = {
             "start_time": self.start_times,
-            "duration": self.durations,
+            "duration": np.array(
+                [w.duration.total_seconds() for w in self], dtype=np.float64
+            ),
         }
 
         for name in ("power", "heartrate", "cadence"):
