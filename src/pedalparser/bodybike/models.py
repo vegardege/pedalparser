@@ -263,8 +263,8 @@ class Workout:
         """Convert time series to a pandas DataFrame.
 
         Returns:
-            DataFrame with columns: time_ms, power, heartrate, cadence,
-            distance, calories.
+            DataFrame with columns: timestamp, power, heartrate, cadence,
+            speed, calories.
 
         Raises:
             ImportError: If pandas is not installed.
@@ -276,11 +276,11 @@ class Workout:
 
         return pd.DataFrame(
             {
-                "time_ms": self.timestamps,
+                "timestamp": self.timestamps,
                 "power": self.power.ts,
                 "heartrate": self.heartrate.ts,
                 "cadence": self.cadence.ts,
-                "distance": self.distance.ts,
+                "speed": self.distance.ts,
                 "calories": self.calories.ts,
             }
         )
@@ -289,8 +289,8 @@ class Workout:
         """Convert time series to a polars DataFrame.
 
         Returns:
-            DataFrame with columns: time_ms, power, heartrate, cadence,
-            distance, calories.
+            DataFrame with columns: timestamp, power, heartrate, cadence,
+            speed, calories.
 
         Raises:
             ImportError: If polars is not installed.
@@ -302,11 +302,11 @@ class Workout:
 
         return pl.DataFrame(
             {
-                "time_ms": self.timestamps,
+                "timestamp": self.timestamps,
                 "power": self.power.ts,
                 "heartrate": self.heartrate.ts,
                 "cadence": self.cadence.ts,
-                "distance": self.distance.ts,
+                "speed": self.distance.ts,
                 "calories": self.calories.ts,
             }
         )
@@ -559,20 +559,31 @@ class WorkoutCollection(Sequence[Workout]):
         to a numpy array with one element per workout.
 
         Returns:
-            Dict with keys: start_time, duration, {metric}_max, {metric}_min,
-            {metric}_mean, {metric}_sum for each metric, and zone_1 through zone_5.
+            Dict with keys: start_time, duration, {metric}_min/mean/max for
+            power/heartrate/cadence/speed, distance, calories, and
+            zone_1 through zone_5.
         """
         data: dict[str, np.ndarray] = {
             "start_time": self.start_times,
-            "duration": self.durations,
+            "duration": np.array(
+                [w.duration.total_seconds() for w in self], dtype=np.float64
+            ),
         }
 
-        for name in ("power", "heartrate", "cadence", "distance", "calories"):
+        for name in ("power", "heartrate", "cadence"):
             accessor = getattr(self, name)
-            data[f"{name}_max"] = accessor.max
             data[f"{name}_min"] = accessor.min
             data[f"{name}_mean"] = accessor.mean
-            data[f"{name}_sum"] = accessor.sum
+            data[f"{name}_max"] = accessor.max
+
+        # distance metric contains speed (km/h) — rename for clarity
+        data["speed_min"] = self.distance.min
+        data["speed_mean"] = self.distance.mean
+        data["speed_max"] = self.distance.max
+
+        # Only totals are meaningful for distance and calories
+        data["distance"] = self.distance.sum
+        data["calories"] = self.calories.sum
 
         for i in range(5):
             data[f"zone_{i + 1}"] = np.array(

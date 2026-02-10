@@ -141,8 +141,8 @@ df.plot(x="start_time", y="power_mean")
 ```python
 df = export.workouts[-1].to_pandas()  # or .to_polars()
 
-# Columns: time_ms, power, heartrate, cadence, distance, calories
-df.plot(x="time_ms", y="power")
+# Columns: timestamp, power, heartrate, cadence, speed, calories
+df.plot(x="timestamp", y="power")
 ```
 
 ### Exporting to markdown

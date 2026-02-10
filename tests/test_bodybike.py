@@ -501,11 +501,11 @@ def test_workout_to_pandas(workout: Workout):
     assert isinstance(df, pd.DataFrame)
     assert len(df) == len(workout.timestamps)
     assert list(df.columns) == [
-        "time_ms",
+        "timestamp",
         "power",
         "heartrate",
         "cadence",
-        "distance",
+        "speed",
         "calories",
     ]
     np.testing.assert_array_equal(df["power"].values, workout.power.ts)
@@ -519,11 +519,11 @@ def test_workout_to_polars(workout: Workout):
     assert isinstance(df, pl.DataFrame)
     assert len(df) == len(workout.timestamps)
     assert df.columns == [
-        "time_ms",
+        "timestamp",
         "power",
         "heartrate",
         "cadence",
-        "distance",
+        "speed",
         "calories",
     ]
     np.testing.assert_array_equal(df["power"].to_numpy(), workout.power.ts)
@@ -562,8 +562,15 @@ def test_collection_to_dict(workouts: WorkoutCollection):
     assert all(isinstance(v, np.ndarray) for v in d.values())
     assert "start_time" in d
     assert "power_mean" in d
+    assert "speed_mean" in d
+    assert "distance" in d
+    assert "calories" in d
     assert "zone_5" in d
     assert len(d["power_mean"]) == len(workouts)
+
+    # Old names should not be present
+    assert "distance_mean" not in d
+    assert "calories_mean" not in d
 
 
 #
@@ -664,7 +671,7 @@ def test_to_sqlite_schema(data: BodyBikeExport, tmp_path: Path):
         row[1] for row in con.execute("PRAGMA table_info(workouts)").fetchall()
     ]
     assert "power_mean" in workout_cols
-    assert "hr_mean" in workout_cols
+    assert "heartrate_mean" in workout_cols
     assert "distance" in workout_cols
     assert "zone_1" in workout_cols
 
