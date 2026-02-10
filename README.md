@@ -5,7 +5,7 @@
 
 `pedalparser` is a Python library for parsing workout data from your [Body Bike](https://body-bike.com/).
 
-Time series are loaded as `numpy` arrays with export helpers for `pandas`, `polars`, or markdown. The `numpy`-first approach allows you to use the data efficiently with the tools you know and love, analyzing or plotting selections of the data:
+Time series are loaded as `numpy` arrays with export helpers for `pandas`, `polars`, SQLite, or markdown. The `numpy`-first approach allows you to use the data efficiently with the tools you know and love, analyzing or plotting selections of the data:
 
 ![Workout timeline](https://raw.githubusercontent.com/vegardege/pedalparser/main/assets/workout-timeline.png)
 
@@ -132,7 +132,8 @@ pip install pedalparser[pandas]   # or [polars]
 ```python
 df = export.workouts.to_pandas()  # or .to_polars()
 
-# Columns: start_time, duration, power_mean, power_max, heartrate_mean, ...
+# Columns: start_time, duration, power_min, power_mean, power_max,
+#          heartrate_min, ..., speed_min, ..., distance, calories, zone_1, ...
 df.plot(x="start_time", y="power_mean")
 ```
 
@@ -143,6 +144,14 @@ df = export.workouts[-1].to_pandas()  # or .to_polars()
 
 # Columns: timestamp, power, heartrate, cadence, speed, calories
 df.plot(x="timestamp", y="power")
+```
+
+### Exporting to SQLite
+
+You can export all workout data to a SQLite database with summary and time series tables:
+
+```python
+export.to_sqlite("workouts.db")  # Overwrites if file exists
 ```
 
 ### Exporting to markdown
@@ -203,6 +212,7 @@ plt.show()
 | `user_settings.ftp` | `int \| None` | FTP (user-set or `None` for estimated) |
 | `user_settings.level_system` | `LevelSystem` | Medals and challenges |
 | `workouts` | `WorkoutCollection` | All workouts |
+| `to_sqlite(path)` | `Path` | Export all data to SQLite database |
 
 ### WorkoutCollection
 
