@@ -664,7 +664,7 @@ def test_to_sqlite_schema(data: BodyBikeExport, tmp_path: Path):
         row[1] for row in con.execute("PRAGMA table_info(workouts)").fetchall()
     ]
     assert "power_mean" in workout_cols
-    assert "hr_mean" in workout_cols
+    assert "heartrate_mean" in workout_cols
     assert "distance" in workout_cols
     assert "zone_1" in workout_cols
 
