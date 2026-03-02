@@ -53,7 +53,7 @@ The export function produces a zip archive with JSON files as described below.
 | `levelSystem.level` | number | Number of achievements achieved |
 | `levelSystem.period` | number | Current week number |
 | `levelSystem.medalLevel` | number | Medal earned this week (0: none, 1: bronze, 2: silver, 3: gold) |
-| `levelSystem.challenges` | number[][] | Weekly challenge indices per medal tier `[[bronze], [silver], [gold]]`, 3 challenges each, number is presumably an index. Reassigned weekly. |
+| `levelSystem.challenges` | number[][] | Weekly challenge indices per medal tier `[[bronze], [silver], [gold]]`, 3 challenges each, reassigned weekly. Values documented below. |
 | `levelSystem.bronze` | number | Total bronze medals earned |
 | `levelSystem.silver` | number | Total silver medals earned |
 | `levelSystem.gold` | number | Total gold medals earned |
@@ -107,7 +107,25 @@ Each file is a JSON array of second-by-second data points:
 | `distance.value` | number | Instantaneous speed in km/h |
 | `calories.value` | number | Instantaneous calorie burn rate in kcal/h |
 
-## Data Quirks
+## Data Details
+
+### Challenges
+
+Each week, three challenges are selected at random to achieve each of the three weekly medal (bronze, silver, gold). The id stored in the file corresponds to a specific challenge template, whose specific requirement is determined by the medal level.
+
+| ID | Challenge            | Bronze    | Silver     | Gold       |
+|----|----------------------|-----------|------------|------------|
+| 0  | Burn `x`             | 1000 kcal | 1250 kcal  | 1500 kcal  |
+| 1  | Max `x` in 1 workout | 300 W     | ?          | ?          |
+| 2  | Max `x` in 1 workout | 100 RPM   | 105 RPM    | 110 RPM    |
+| 3  | `x` zone+ in 1 week  | ?         | 10% red    | 15% red    |
+| 4  | `x` km               | 50 km     | 60 km      | 75 km      |
+| 5  | `x` workouts         | 2         | 3          | 4          |
+| 6  | `x` zone+ in 1 week  | 50% green | 30% yellow | 40% yellow |
+| 7  | Avg `x` in 1 workout | ?         | 175 W      | 200 W      |
+| 8  | Avg `x` in 1 workout | 28 km/h   | 31 km/h    | 33 km/h    |
+
+*`?` are levels I have yet to encounter in my testing phase, they will be added as soon as I see them*
 
 ### Confusing field names
 
