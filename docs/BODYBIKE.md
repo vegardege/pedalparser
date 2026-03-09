@@ -122,7 +122,7 @@ Each week, three challenges are selected at random to achieve each of the three 
 | 4  | `x` km               | 50 km     | 60 km      | 75 km      |
 | 5  | `x` workouts         | 2         | 3          | 4          |
 | 6  | `x` zone+ in 1 week  | 50% green | 30% yellow | 40% yellow |
-| 7  | Avg `x` in 1 workout | ?         | 175 W      | 200 W      |
+| 7  | Avg `x` in 1 workout | 150 W     | 175 W      | 200 W      |
 | 8  | Avg `x` in 1 workout | 28 km/h   | 31 km/h    | 33 km/h    |
 
 *`?` are levels I have yet to encounter in my testing phase, they will be added as soon as I see them*
