@@ -113,17 +113,17 @@ Each file is a JSON array of second-by-second data points:
 
 Each week, three challenges are selected at random to achieve each of the three weekly medal (bronze, silver, gold). The id stored in the file corresponds to a specific challenge template, whose specific requirement is determined by the medal level.
 
-| ID | Challenge            | Bronze    | Silver     | Gold       |
-|----|----------------------|-----------|------------|------------|
-| 0  | Burn `x`             | 1000 kcal | 1250 kcal  | 1500 kcal  |
-| 1  | Max `x` in 1 workout | 300 W     | ?          | ?          |
-| 2  | Max `x` in 1 workout | 100 RPM   | 105 RPM    | 110 RPM    |
-| 3  | `x` zone+ in 1 week  | ?         | 10% red    | 15% red    |
-| 4  | `x` km               | 50 km     | 60 km      | 75 km      |
-| 5  | `x` workouts         | 2         | 3          | 4          |
-| 6  | `x` zone+ in 1 week  | 50% green | 30% yellow | 40% yellow |
-| 7  | Avg `x` in 1 workout | 150 W     | 175 W      | 200 W      |
-| 8  | Avg `x` in 1 workout | 28 km/h   | 31 km/h    | 33 km/h    |
+| ID | Challenge            | Bronze     | Silver     | Gold       |
+|----|----------------------|------------|------------|------------|
+| 0  | Burn `x`             | 1000 kcal  | 1250 kcal  | 1500 kcal  |
+| 1  | Max `x` in 1 workout | 300 W      | ?          | ?          |
+| 2  | Max `x` in 1 workout | 100 RPM    | 105 RPM    | 110 RPM    |
+| 3  | `x` zone+ in 1 week  | 25% yellow | 10% red    | 15% red    |
+| 4  | `x` km               | 50 km      | 60 km      | 75 km      |
+| 5  | `x` workouts         | 2          | 3          | 4          |
+| 6  | `x` zone+ in 1 week  | 50% green  | 30% yellow | 40% yellow |
+| 7  | Avg `x` in 1 workout | 150 W      | 175 W      | 200 W      |
+| 8  | Avg `x` in 1 workout | 28 km/h    | 31 km/h    | 33 km/h    |
 
 *`?` are levels I have yet to encounter in my testing phase, they will be added as soon as I see them*
 
