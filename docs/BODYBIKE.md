@@ -116,7 +116,7 @@ Each week, three challenges are selected at random to achieve each of the three 
 | ID | Challenge            | Bronze     | Silver     | Gold       |
 |----|----------------------|------------|------------|------------|
 | 0  | Burn `x`             | 1000 kcal  | 1250 kcal  | 1500 kcal  |
-| 1  | Max `x` in 1 workout | 300 W      | ?          | 400 W      |
+| 1  | Max `x` in 1 workout | 300 W      | 350 W      | 400 W      |
 | 2  | Max `x` in 1 workout | 100 RPM    | 105 RPM    | 110 RPM    |
 | 3  | `x` zone+ in 1 week  | 25% yellow | 10% red    | 15% red    |
 | 4  | `x` km               | 50 km      | 60 km      | 75 km      |
